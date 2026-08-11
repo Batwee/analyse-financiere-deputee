@@ -16,7 +16,7 @@ function downloadXML(url) {
   });
 }
 
-// Extraction récursive de toutes les participations financières (présence de 'nomSociete')
+// Parcours récursif pour extraire toutes les participations financières
 function extractParticipations(node) {
   let list = [];
   if (!node) return list;
@@ -37,28 +37,24 @@ function extractParticipations(node) {
   return list;
 }
 
-// Détection souple et universelle des députés
-function isDeputeDeclaration(decla) {
-  // 1. Vérification par champs spécifiques
-  const titre = String(decla?.qualiteDeclarantForAffichage || '').toLowerCase();
-  const qualite = String(decla?.qualiteMandat?.typeMandat || decla?.qualiteMandat || '').toLowerCase();
-  
-  if (titre.includes('deput') || titre.includes('déput') || qualite.includes('deput') || qualite.includes('déput')) {
-    return true;
-  }
+// Vérifie si la déclaration concerne un député
+function isDepute(decla) {
+  const jsonStr = JSON.stringify(decla).toLowerCase();
 
-  // 2. Repli : inspection du texte sérialisé de la déclaration (limité aux métadonnées du declarant/mandat)
-  const declarantStr = JSON.stringify(decla?.declarant || {}).toLowerCase();
-  const qualiteStr = JSON.stringify(decla?.qualiteMandat || {}).toLowerCase();
-  
-  return declarantStr.includes('deput') || qualiteStr.includes('deput') || 
-         declarantStr.includes('déput') || qualiteStr.includes('déput');
+  // Mots-clés et identifiants techniques HATVP pour les députés
+  return (
+    jsonStr.includes('dép') ||
+    jsonStr.includes('depu') ||
+    jsonStr.includes('mandat parlementaire') ||
+    jsonStr.includes('assemblée nationale') ||
+    jsonStr.includes('assemblee nationale')
+  );
 }
 
 async function processData() {
   try {
     const xmlText = await downloadXML(XML_URL);
-    console.log('Parsing XML...');
+    console.log('Parsing du document XML...');
 
     const parser = new XMLParser({
       ignoreAttributes: false,
@@ -66,40 +62,38 @@ async function processData() {
     });
 
     const parsedObj = parser.parse(xmlText);
-    
-    // Récupération souple des déclarations
-    let declarations = [];
-    if (parsedObj?.declarations?.declaration) {
-      declarations = parsedObj.declarations.declaration;
-    } else if (parsedObj?.declaration) {
-      declarations = parsedObj.declaration;
-    } else {
-      // Recherche au niveau racine si la structure est modifiée
-      declarations = extractParticipations(parsedObj); 
-    }
+    const rootContainer = parsedObj?.declarations || parsedObj;
+    let declarations = rootContainer?.declaration || [];
 
     if (!Array.isArray(declarations)) {
       declarations = [declarations];
     }
 
-    console.log(`Déclarations analysées : ${declarations.length}`);
+    console.log(`Nombre total de déclarations analysées : ${declarations.length}`);
 
     const records = [];
     let countDeputes = 0;
 
     for (const decla of declarations) {
-      if (!isDeputeDeclaration(decla)) continue;
+      if (!isDepute(decla)) continue;
       countDeputes++;
 
+      // Nom et Prénom de l'élu
       const prenom = String(decla?.declarant?.prenom || '').trim();
       const nom = String(decla?.declarant?.nom || '').trim();
       const eluNom = `${prenom} ${nom}`.trim() || 'Inconnu';
 
+      // Parti / Organe politique
       let parti = String(decla?.qualiteMandat?.organe?.codeOrgane || '').trim();
       if (!parti) {
-        parti = String(decla?.qualiteMandat?.labelOrgane || decla?.qualiteMandat?.organe?.label || 'Non renseigné').trim();
+        parti = String(
+          decla?.qualiteMandat?.labelOrgane || 
+          decla?.qualiteMandat?.organe?.label || 
+          'Non renseigné'
+        ).trim();
       }
 
+      // Section Participations Financières
       const partSection = decla?.participationsFinancieresDto;
       if (!partSection || partSection.neant === true || partSection.neant === 'true') {
         continue;
@@ -109,7 +103,7 @@ async function processData() {
 
       for (const item of items) {
         const nomSociete = String(item?.nomSociete || '').trim().toUpperCase();
-        
+
         let evaluationRaw = item?.evaluation;
         if (typeof evaluationRaw === 'object') {
           evaluationRaw = JSON.stringify(evaluationRaw);
@@ -119,6 +113,7 @@ async function processData() {
 
         if (!nomSociete) continue;
 
+        // Nettoyage et conversion du montant en chiffre
         const cleanVal = evaluationRaw.replace(/\s+/g, '');
         const matches = cleanVal.match(/\d+/);
         const montant = matches ? parseFloat(matches[0]) : 0;
@@ -136,11 +131,11 @@ async function processData() {
     console.log(`Participations financières extraites : ${records.length}`);
 
     if (records.length === 0) {
-      throw new Error("L'extraction n'a renvoyé aucun résultat.");
+      throw new Error("Aucune participation n'a été extraite.");
     }
 
     fs.writeFileSync(OUTPUT_FILE, JSON.stringify(records, null, 2), 'utf-8');
-    console.log(`Fichier ${OUTPUT_FILE} généré avec succès.`);
+    console.log(`Fichier ${OUTPUT_FILE} mis à jour avec succès (${records.length} entrées).`);
 
   } catch (error) {
     console.error('Erreur :', error.message);
