@@ -16,35 +16,37 @@ function downloadXML(url) {
   });
 }
 
-// Parcours récursif robuste pour capturer les objets contenant un nom de société
-function findSocietes(node) {
-  let list = [];
-  if (!node) return list;
+// Recherche récursive universelle de tous les objets ayant une société/organisme
+function extractAllParticipations(obj) {
+  let results = [];
+  if (!obj || typeof obj !== 'object') return results;
 
-  if (Array.isArray(node)) {
-    for (const item of node) {
-      list.push(...findSocietes(item));
+  if (Array.isArray(obj)) {
+    for (const item of obj) {
+      results.push(...extractAllParticipations(item));
     }
-  } else if (typeof node === 'object') {
-    // Si l'objet possède un champ 'nomSociete' ou 'nomOrganisme'
-    if (node.nomSociete || node.nomOrganisme) {
-      list.push(node);
+  } else {
+    // Si l'objet contient un nom de société ou d'organisme
+    const nomSociete = obj.nomSociete || obj.nomOrganisme || obj.denomination || obj.nom_societe;
+    if (nomSociete && typeof nomSociete === 'string' && nomSociete.trim().length > 0) {
+      results.push(obj);
     }
-    // Continue d'explorer les clés enfants
-    for (const key of Object.keys(node)) {
-      if (typeof node[key] === 'object') {
-        list.push(...findSocietes(node[key]));
+
+    // Poursuite de la recherche dans les sous-propriétés
+    for (const key of Object.keys(obj)) {
+      if (typeof obj[key] === 'object') {
+        results.push(...extractAllParticipations(obj[key]));
       }
     }
   }
-  return list;
+  return results;
 }
 
-// Extrait la valeur numérique depuis n'importe quelle structure (chaine, objet, sous-noeud)
+// Extraction propre du montant numérique
 function parseMontant(item) {
-  const rawVal = item.evaluation || item.montant || item.valeur || item.remuneration || '0';
+  const rawVal = item.evaluation || item.montant || item.valeur || item.remuneration || item.capital || '0';
   const valStr = typeof rawVal === 'object' ? JSON.stringify(rawVal) : String(rawVal);
-  
+
   const cleanVal = valStr.replace(/\s+/g, '');
   const matches = cleanVal.match(/\d+/);
   return matches ? parseFloat(matches[0]) : 0;
@@ -68,6 +70,7 @@ async function processData() {
 
     const parser = new XMLParser({
       ignoreAttributes: false,
+      parseNodeValue: false,
       isArray: (name) => ['declaration', 'items'].includes(name)
     });
 
@@ -101,14 +104,15 @@ async function processData() {
         ).trim();
       }
 
-      // Analyse de la section participations financieres
-      const partSection = decla?.participationsFinancieresDto;
-      if (!partSection) continue;
-
-      const itemsFound = findSocietes(partSection);
+      // Ciblage de la rubrique participations financières ou recherche globale sur la déclaration
+      const partSection = decla?.participationsFinancieresDto || decla;
+      const itemsFound = extractAllParticipations(partSection);
 
       for (const item of itemsFound) {
-        const nomSociete = String(item.nomSociete || item.nomOrganisme || '').trim().toUpperCase();
+        const nomSociete = String(
+          item.nomSociete || item.nomOrganisme || item.denomination || item.nom_societe || ''
+        ).trim().toUpperCase();
+
         if (!nomSociete) continue;
 
         const montant = parseMontant(item);
@@ -130,7 +134,7 @@ async function processData() {
     }
 
     fs.writeFileSync(OUTPUT_FILE, JSON.stringify(records, null, 2), 'utf-8');
-    console.log(`Fichier ${OUTPUT_FILE} généré avec succès (${records.length} entrées).`);
+    console.log(`Fichier ${OUTPUT_FILE} mis à jour avec succès (${records.length} entrées).`);
 
   } catch (error) {
     console.error('Erreur :', error.message);
