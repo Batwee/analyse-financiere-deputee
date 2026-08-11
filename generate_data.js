@@ -16,32 +16,42 @@ function downloadXML(url) {
   });
 }
 
-// Parcours récursif pour extraire toutes les participations financières
-function extractParticipations(node) {
+// Parcours récursif robuste pour capturer les objets contenant un nom de société
+function findSocietes(node) {
   let list = [];
   if (!node) return list;
 
   if (Array.isArray(node)) {
     for (const item of node) {
-      list.push(...extractParticipations(item));
+      list.push(...findSocietes(item));
     }
   } else if (typeof node === 'object') {
-    if (node.nomSociete) {
+    // Si l'objet possède un champ 'nomSociete' ou 'nomOrganisme'
+    if (node.nomSociete || node.nomOrganisme) {
       list.push(node);
-    } else {
-      for (const key of Object.keys(node)) {
-        list.push(...extractParticipations(node[key]));
+    }
+    // Continue d'explorer les clés enfants
+    for (const key of Object.keys(node)) {
+      if (typeof node[key] === 'object') {
+        list.push(...findSocietes(node[key]));
       }
     }
   }
   return list;
 }
 
-// Vérifie si la déclaration concerne un député
+// Extrait la valeur numérique depuis n'importe quelle structure (chaine, objet, sous-noeud)
+function parseMontant(item) {
+  const rawVal = item.evaluation || item.montant || item.valeur || item.remuneration || '0';
+  const valStr = typeof rawVal === 'object' ? JSON.stringify(rawVal) : String(rawVal);
+  
+  const cleanVal = valStr.replace(/\s+/g, '');
+  const matches = cleanVal.match(/\d+/);
+  return matches ? parseFloat(matches[0]) : 0;
+}
+
 function isDepute(decla) {
   const jsonStr = JSON.stringify(decla).toLowerCase();
-
-  // Mots-clés et identifiants techniques HATVP pour les députés
   return (
     jsonStr.includes('dép') ||
     jsonStr.includes('depu') ||
@@ -69,7 +79,7 @@ async function processData() {
       declarations = [declarations];
     }
 
-    console.log(`Nombre total de déclarations analysées : ${declarations.length}`);
+    console.log(`Déclarations analysées : ${declarations.length}`);
 
     const records = [];
     let countDeputes = 0;
@@ -78,12 +88,10 @@ async function processData() {
       if (!isDepute(decla)) continue;
       countDeputes++;
 
-      // Nom et Prénom de l'élu
       const prenom = String(decla?.declarant?.prenom || '').trim();
       const nom = String(decla?.declarant?.nom || '').trim();
       const eluNom = `${prenom} ${nom}`.trim() || 'Inconnu';
 
-      // Parti / Organe politique
       let parti = String(decla?.qualiteMandat?.organe?.codeOrgane || '').trim();
       if (!parti) {
         parti = String(
@@ -93,30 +101,17 @@ async function processData() {
         ).trim();
       }
 
-      // Section Participations Financières
+      // Analyse de la section participations financieres
       const partSection = decla?.participationsFinancieresDto;
-      if (!partSection || partSection.neant === true || partSection.neant === 'true') {
-        continue;
-      }
+      if (!partSection) continue;
 
-      const items = extractParticipations(partSection);
+      const itemsFound = findSocietes(partSection);
 
-      for (const item of items) {
-        const nomSociete = String(item?.nomSociete || '').trim().toUpperCase();
-
-        let evaluationRaw = item?.evaluation;
-        if (typeof evaluationRaw === 'object') {
-          evaluationRaw = JSON.stringify(evaluationRaw);
-        } else {
-          evaluationRaw = String(evaluationRaw || '0').trim();
-        }
-
+      for (const item of itemsFound) {
+        const nomSociete = String(item.nomSociete || item.nomOrganisme || '').trim().toUpperCase();
         if (!nomSociete) continue;
 
-        // Nettoyage et conversion du montant en chiffre
-        const cleanVal = evaluationRaw.replace(/\s+/g, '');
-        const matches = cleanVal.match(/\d+/);
-        const montant = matches ? parseFloat(matches[0]) : 0;
+        const montant = parseMontant(item);
 
         records.push({
           entreprise: nomSociete,
@@ -135,7 +130,7 @@ async function processData() {
     }
 
     fs.writeFileSync(OUTPUT_FILE, JSON.stringify(records, null, 2), 'utf-8');
-    console.log(`Fichier ${OUTPUT_FILE} mis à jour avec succès (${records.length} entrées).`);
+    console.log(`Fichier ${OUTPUT_FILE} généré avec succès (${records.length} entrées).`);
 
   } catch (error) {
     console.error('Erreur :', error.message);
