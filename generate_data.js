@@ -30,44 +30,38 @@ function downloadXML(url) {
   });
 }
 
-// Extrait la valeur numérique en parcourant TOUS les champs d'un nœud
-function extractAnyNumericValue(obj) {
-  if (!obj || typeof obj !== 'object') return 0;
+// Traverse récursivement un objet pour extraire la vraie valeur numérique
+function findNumericValue(node) {
+  if (node === null || node === undefined) return 0;
 
-  // Clés prioritaires de la HATVP
-  const priorityKeys = [
-    'evaluation', 'evaluationDto', 'valeur', 'valeurParticipation', 
-    'remuneration', 'montant', 'capital'
-  ];
+  if (typeof node === 'number') return node;
 
-  for (const key of priorityKeys) {
-    if (obj[key] !== undefined && obj[key] !== null) {
-      const parsed = parseStringValue(obj[key]);
-      if (parsed > 0) return parsed;
+  if (typeof node === 'string') {
+    const valStr = node.trim().replace(/\s+/g, '');
+    if (!valStr || valStr.toLowerCase() === 'neant' || valStr.toLowerCase() === 'false') return 0;
+    const matches = valStr.match(/\d+/);
+    return matches ? parseFloat(matches[0]) : 0;
+  }
+
+  if (typeof node === 'object') {
+    // Clés HATVP à inspecter en priorité
+    const priorityKeys = ['evaluation', 'valeur', 'montant', 'capital', 'montantEuros'];
+    for (const k of priorityKeys) {
+      if (node[k] !== undefined) {
+        const res = findNumericValue(node[k]);
+        if (res > 0) return res;
+      }
+    }
+
+    // Parcourt tous les champs si non trouvé dans les clés prioritaires
+    for (const key of Object.keys(node)) {
+      if (key.toLowerCase().includes('nom') || key.toLowerCase().includes('societe')) continue;
+      const res = findNumericValue(node[key]);
+      if (res > 0) return res;
     }
   }
 
-  // Scan général de toutes les clés de l'objet
-  for (const [key, val] of Object.entries(obj)) {
-    if (key.toLowerCase().includes('nom') || key.toLowerCase().includes('societe')) continue;
-    const parsed = parseStringValue(val);
-    if (parsed > 0) return parsed;
-  }
-
   return 0;
-}
-
-function parseStringValue(val) {
-  if (val === undefined || val === null) return 0;
-  if (typeof val === 'number') return val;
-  if (typeof val === 'object') return extractAnyNumericValue(val);
-
-  const valStr = String(val).trim();
-  if (!valStr || valStr.toLowerCase() === 'neant' || valStr.toLowerCase() === 'false') return 0;
-
-  const cleanVal = valStr.replace(/\s+/g, '');
-  const matches = cleanVal.match(/\d+/);
-  return matches ? parseFloat(matches[0]) : 0;
 }
 
 function isParlementaire(decla) {
@@ -82,28 +76,24 @@ function isParlementaire(decla) {
   );
 }
 
-function getFinancialItems(partSection) {
-  let items = [];
-  if (!partSection) return items;
+// Extrait les sous-éléments représentant une société/entreprise
+function collectSocietes(node) {
+  let list = [];
+  if (!node) return list;
 
-  function collect(node) {
-    if (!node) return;
-    if (Array.isArray(node)) {
-      node.forEach(collect);
-    } else if (typeof node === 'object') {
-      const nom = node.nomSociete || node.nom_societe || node.denomination;
-      if (nom && typeof nom === 'string' && nom.trim().length > 0) {
-        items.push(node);
-      } else {
-        for (const k of Object.keys(node)) {
-          if (typeof node[k] === 'object') collect(node[k]);
-        }
+  if (Array.isArray(node)) {
+    for (const child of node) list.push(...collectSocietes(child));
+  } else if (typeof node === 'object') {
+    const nom = node.nomSociete || node.nom_societe || node.denomination;
+    if (nom && typeof nom === 'string' && nom.trim().length > 0) {
+      list.push(node);
+    } else {
+      for (const k of Object.keys(node)) {
+        if (typeof node[k] === 'object') list.push(...collectSocietes(node[k]));
       }
     }
   }
-
-  collect(partSection);
-  return items;
+  return list;
 }
 
 function getEluNom(decla) {
@@ -187,10 +177,11 @@ async function processData() {
         ).trim();
       }
 
+      // Extraction uniquement depuis le bloc des participations financières
       const partSection = decla?.participationsFinancieresDto;
       if (!partSection || partSection.neant === 'true' || partSection.neant === true) continue;
 
-      const itemsFound = getFinancialItems(partSection);
+      const itemsFound = collectSocietes(partSection);
 
       for (const item of itemsFound) {
         const nomSociete = String(
@@ -199,7 +190,10 @@ async function processData() {
 
         if (!nomSociete) continue;
 
-        const montant = extractAnyNumericValue(item);
+        // Traverse la sous-structure pour trouver le montant réel
+        const montant = findNumericValue(item);
+
+        // ON MASQUE STRICTEMENT LES MONTANTS NULS
         if (montant <= 0) continue;
 
         const uniqueKey = `${eluNom}-${nomSociete}-${montant}`;
@@ -216,7 +210,7 @@ async function processData() {
     }
 
     console.log(`Parlementaires identifiés : ${countParlementaires}`);
-    console.log(`Participations financières extraites (> 0 €) : ${records.length}`);
+    console.log(`Participations financières réelles retenues (> 0 €) : ${records.length}`);
 
     if (records.length === 0) {
       throw new Error("Aucune participation n'a été extraite.");
