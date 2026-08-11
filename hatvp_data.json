@@ -56,7 +56,7 @@
     "montant": 3462420
   },
   {
-    "entreprise": "SC TRÉSORIÈRE",
+    "entreprise": "SC TRESORIERE",
     "elu": "Henri Alfandari",
     "parti": "HOR",
     "type": "Député",
@@ -98,7 +98,7 @@
     "montant": 40
   },
   {
-    "entreprise": "COOPÉRATIVE CAP'ECO",
+    "entreprise": "COOPERATIVE CAP'ECO",
     "elu": "Christine ARRIGHI",
     "parti": "ECO",
     "type": "Député",
@@ -266,14 +266,14 @@
     "montant": 153383
   },
   {
-    "entreprise": "AIR FRANCE",
+    "entreprise": "AIR FRANCE-KLM",
     "elu": "christophe Blanchet",
     "parti": "MODEM",
     "type": "Député",
     "montant": 12622
   },
   {
-    "entreprise": "AIR FRANCE",
+    "entreprise": "AIR FRANCE-KLM",
     "elu": "christophe Blanchet",
     "parti": "MODEM",
     "type": "Député",
@@ -336,7 +336,7 @@
     "montant": 226
   },
   {
-    "entreprise": "ATARI REGPT",
+    "entreprise": "ATARI",
     "elu": "bertrand bouyx",
     "parti": "HOR",
     "type": "Député",
@@ -350,7 +350,7 @@
     "montant": 1594362
   },
   {
-    "entreprise": "SOPRA STERIA GROUP",
+    "entreprise": "SOPRA STERIA",
     "elu": "Yaël Braun-Pivet",
     "parti": "REN",
     "type": "Député",
@@ -392,7 +392,7 @@
     "montant": 7638
   },
   {
-    "entreprise": "BNP PARISBAS",
+    "entreprise": "BNP PARIBAS",
     "elu": "Yaël Braun-Pivet",
     "parti": "REN",
     "type": "Député",
@@ -441,7 +441,7 @@
     "montant": 548
   },
   {
-    "entreprise": "BOUYGUES SA",
+    "entreprise": "BOUYGUES",
     "elu": "JEAN-RENE CAZENEUVE",
     "parti": "REN",
     "type": "Député",
@@ -602,7 +602,7 @@
     "montant": 351187
   },
   {
-    "entreprise": "CRÉDIT MUTUEL",
+    "entreprise": "CREDIT MUTUEL",
     "elu": "Pierre Cordier",
     "parti": "LR",
     "type": "Député",
@@ -693,14 +693,14 @@
     "montant": 10000
   },
   {
-    "entreprise": "CAISSE D'ÉPARGNE",
+    "entreprise": "CAISSE D'EPARGNE",
     "elu": "Stéphane DELAUTRETTE",
     "parti": "SOC",
     "type": "Député",
     "montant": 2500
   },
   {
-    "entreprise": "SELARL ALÉGRIA AVOCAT",
+    "entreprise": "SELARL ALEGRIA AVOCAT",
     "elu": "Hervé de Lépinau",
     "parti": "RN",
     "type": "Député",
@@ -714,7 +714,7 @@
     "montant": 241717
   },
   {
-    "entreprise": "SELARL ALÉGRIA AVOCAT",
+    "entreprise": "SELARL ALEGRIA AVOCAT",
     "elu": "Hervé de Lépinau",
     "parti": "RN",
     "type": "Député",
@@ -973,7 +973,7 @@
     "montant": 45090
   },
   {
-    "entreprise": "ADP",
+    "entreprise": "GROUPE ADP",
     "elu": "Marc FESNEAU",
     "parti": "MODEM",
     "type": "Député",
@@ -1190,7 +1190,7 @@
     "montant": 2584
   },
   {
-    "entreprise": "L OREAL",
+    "entreprise": "L'OREAL",
     "elu": "Agnès Firmin Le Bodo",
     "parti": "HOR",
     "type": "Député",
@@ -1386,7 +1386,7 @@
     "montant": 9253
   },
   {
-    "entreprise": "CRÉDIT COOPÉRATIF",
+    "entreprise": "CREDIT COOPERATIF",
     "elu": "Marie-Charlotte Garin",
     "parti": "ECO",
     "type": "Député",
@@ -1491,7 +1491,7 @@
     "montant": 4172
   },
   {
-    "entreprise": "COSTCO WHOLESALE",
+    "entreprise": "COSTCO",
     "elu": "Frank Giletti",
     "parti": "RN",
     "type": "Député",
@@ -1554,7 +1554,7 @@
     "montant": 95000
   },
   {
-    "entreprise": "BNP",
+    "entreprise": "BNP PARIBAS",
     "elu": "philippe gosselin",
     "parti": "LR",
     "type": "Député",
@@ -1568,14 +1568,14 @@
     "montant": 6694
   },
   {
-    "entreprise": "ADP",
+    "entreprise": "GROUPE ADP",
     "elu": "philippe gosselin",
     "parti": "LR",
     "type": "Député",
     "montant": 3304
   },
   {
-    "entreprise": "AIR FRANCE",
+    "entreprise": "AIR FRANCE-KLM",
     "elu": "philippe gosselin",
     "parti": "LR",
     "type": "Député",
@@ -1631,7 +1631,7 @@
     "montant": 1563
   },
   {
-    "entreprise": "SISA AUTHUME SANTÉ",
+    "entreprise": "SISA AUTHUME SANTE",
     "elu": "Justine GRUET",
     "parti": "LR",
     "type": "Député",
@@ -1778,7 +1778,7 @@
     "montant": 39
   },
   {
-    "entreprise": "VEOLIA ENVIRONNEMENT",
+    "entreprise": "VEOLIA",
     "elu": "JORDAN GUITTON",
     "parti": "RN",
     "type": "Député",
@@ -1827,7 +1827,7 @@
     "montant": 20
   },
   {
-    "entreprise": "VEOLIA ENVIRONNEMENT",
+    "entreprise": "VEOLIA",
     "elu": "JORDAN GUITTON",
     "parti": "RN",
     "type": "Député",
@@ -1848,7 +1848,7 @@
     "montant": 25
   },
   {
-    "entreprise": "AIR LIQUID",
+    "entreprise": "AIR LIQUIDE",
     "elu": "JORDAN GUITTON",
     "parti": "RN",
     "type": "Député",
@@ -1911,7 +1911,7 @@
     "montant": 444
   },
   {
-    "entreprise": "AIR LIQUID",
+    "entreprise": "AIR LIQUIDE",
     "elu": "JORDAN GUITTON",
     "parti": "RN",
     "type": "Député",
@@ -1988,7 +1988,7 @@
     "montant": 267
   },
   {
-    "entreprise": "LA FRANCAISE DES JEUX",
+    "entreprise": "FDJ",
     "elu": "JORDAN GUITTON",
     "parti": "RN",
     "type": "Député",
@@ -2030,7 +2030,7 @@
     "montant": 1153
   },
   {
-    "entreprise": "BNP SP 500 (ETF)",
+    "entreprise": "BNP PARIBAS",
     "elu": "JORDAN GUITTON",
     "parti": "RN",
     "type": "Député",
@@ -2044,7 +2044,7 @@
     "montant": 788
   },
   {
-    "entreprise": "VEOLIA ENVIRONNEMENT",
+    "entreprise": "VEOLIA",
     "elu": "JORDAN GUITTON",
     "parti": "RN",
     "type": "Député",
@@ -2324,14 +2324,14 @@
     "montant": 19283
   },
   {
-    "entreprise": "ADVANCED MICRO DEVICES",
+    "entreprise": "AMD",
     "elu": "philippe JUVIN",
     "parti": "LR",
     "type": "Député",
     "montant": 1292
   },
   {
-    "entreprise": "UBER TECHNOLOGIES",
+    "entreprise": "UBER",
     "elu": "philippe JUVIN",
     "parti": "LR",
     "type": "Député",
@@ -2366,7 +2366,7 @@
     "montant": 600
   },
   {
-    "entreprise": "AMD (ADVANCED MICRO DEVICES)",
+    "entreprise": "AMD",
     "elu": "GUILLAUME KASBARIAN",
     "parti": "REN",
     "type": "Député",
@@ -2387,7 +2387,7 @@
     "montant": 109
   },
   {
-    "entreprise": "REDDIT RG-A",
+    "entreprise": "REDDIT",
     "elu": "GUILLAUME KASBARIAN",
     "parti": "REN",
     "type": "Député",
@@ -2401,7 +2401,7 @@
     "montant": 304
   },
   {
-    "entreprise": "SEA SP ADR-A",
+    "entreprise": "SEA LIMITED",
     "elu": "GUILLAUME KASBARIAN",
     "parti": "REN",
     "type": "Député",
@@ -2422,14 +2422,14 @@
     "montant": 225
   },
   {
-    "entreprise": "UBER TECH",
+    "entreprise": "UBER",
     "elu": "GUILLAUME KASBARIAN",
     "parti": "REN",
     "type": "Député",
     "montant": 255
   },
   {
-    "entreprise": "VISA RG-A",
+    "entreprise": "VISA",
     "elu": "GUILLAUME KASBARIAN",
     "parti": "REN",
     "type": "Député",
@@ -2464,7 +2464,7 @@
     "montant": 233
   },
   {
-    "entreprise": "PUBLICIS GROUPE",
+    "entreprise": "PUBLICIS",
     "elu": "GUILLAUME KASBARIAN",
     "parti": "REN",
     "type": "Député",
@@ -2506,7 +2506,7 @@
     "montant": 233
   },
   {
-    "entreprise": "ROBLOX RG-A",
+    "entreprise": "ROBLOX",
     "elu": "GUILLAUME KASBARIAN",
     "parti": "REN",
     "type": "Député",
@@ -2527,28 +2527,28 @@
     "montant": 250
   },
   {
-    "entreprise": "BANQUE FÉDÉRATIVE DU CRÉDIT MUTUEL",
+    "entreprise": "BANQUE FEDERATIVE DU CREDIT MUTUEL",
     "elu": "Brigitte Klinkert",
     "parti": "REN",
     "type": "Député",
     "montant": 5556
   },
   {
-    "entreprise": "BANQUE FÉDÉRATIVE DU CRÉDIT MUTUEL",
+    "entreprise": "BANQUE FEDERATIVE DU CREDIT MUTUEL",
     "elu": "Brigitte Klinkert",
     "parti": "REN",
     "type": "Député",
     "montant": 12246
   },
   {
-    "entreprise": "CAISSE FÉDÉRALE DE CRÉDIT MUTUEL",
+    "entreprise": "CAISSE FEDERALE DE CREDIT MUTUEL",
     "elu": "Brigitte Klinkert",
     "parti": "REN",
     "type": "Député",
     "montant": 61222
   },
   {
-    "entreprise": "BANQUE FÉDÉRATIVE DU CRÉDIT MUTUEL",
+    "entreprise": "BANQUE FEDERATIVE DU CREDIT MUTUEL",
     "elu": "Brigitte Klinkert",
     "parti": "REN",
     "type": "Député",
@@ -2590,7 +2590,7 @@
     "montant": 1000
   },
   {
-    "entreprise": "EUROTUNNEL",
+    "entreprise": "GETLINK",
     "elu": "Philippe LATOMBE",
     "parti": "MODEM",
     "type": "Député",
@@ -2681,7 +2681,7 @@
     "montant": 2053
   },
   {
-    "entreprise": "MAISON DE SANTÉ PLURIDISCIPLINAIRE DE DANNEMARIE",
+    "entreprise": "MAISON DE SANTE PLURIDISCIPLINAIRE DE DANNEMARIE",
     "elu": "Didier LEMAIRE",
     "parti": "HOR",
     "type": "Député",
@@ -2835,7 +2835,7 @@
     "montant": 27000000
   },
   {
-    "entreprise": "CHÂTEAU DE MONTAL SARL",
+    "entreprise": "CHATEAU DE MONTAL SARL",
     "elu": "Sylvain Maillard",
     "parti": "REN",
     "type": "Député",
@@ -2926,7 +2926,7 @@
     "montant": 1200
   },
   {
-    "entreprise": "AEROPORTS DE PARIS",
+    "entreprise": "GROUPE ADP",
     "elu": "Graziella MELCHIOR",
     "parti": "REN",
     "type": "Député",
@@ -3038,7 +3038,7 @@
     "montant": 788684
   },
   {
-    "entreprise": "SARL MÉNAGÉ",
+    "entreprise": "SARL MENAGE",
     "elu": "Thomas Ménagé",
     "parti": "RN",
     "type": "Député",
@@ -3101,7 +3101,7 @@
     "montant": 135000
   },
   {
-    "entreprise": "FRENESIUS MÉDICAL CARE",
+    "entreprise": "FRENESIUS MEDICAL CARE",
     "elu": "Laure MILLER",
     "parti": "REN",
     "type": "Député",
@@ -3115,7 +3115,7 @@
     "montant": 214
   },
   {
-    "entreprise": "ORPÉA",
+    "entreprise": "ORPEA",
     "elu": "Laure MILLER",
     "parti": "REN",
     "type": "Député",
@@ -3136,18 +3136,11 @@
     "montant": 1612
   },
   {
-    "entreprise": "CAISSE D'ÉPARGNE",
+    "entreprise": "CAISSE D'EPARGNE",
     "elu": "Louise Morel",
     "parti": "MODEM",
     "type": "Député",
     "montant": 300
-  },
-  {
-    "entreprise": "SCI [DONN��ES NON PUBLIÉES]",
-    "elu": "Louise Morel",
-    "parti": "MODEM",
-    "type": "Député",
-    "montant": 1612
   },
   {
     "entreprise": "ARC MANAGEMENT",
@@ -3213,7 +3206,7 @@
     "montant": 14363
   },
   {
-    "entreprise": "CRÉDIT MUTUEL",
+    "entreprise": "CREDIT MUTUEL",
     "elu": "Hubert Ott",
     "parti": "MODEM",
     "type": "Député",
@@ -3297,7 +3290,7 @@
     "montant": 5160
   },
   {
-    "entreprise": "SOPRA STERIA GROUP",
+    "entreprise": "SOPRA STERIA",
     "elu": "Laurent PANIFOUS",
     "parti": "LIOT",
     "type": "Député",
@@ -3318,7 +3311,7 @@
     "montant": 5247
   },
   {
-    "entreprise": "VEOLIA ENVIRONNEMENT",
+    "entreprise": "VEOLIA",
     "elu": "Laurent PANIFOUS",
     "parti": "LIOT",
     "type": "Député",
@@ -3339,7 +3332,7 @@
     "montant": 2907
   },
   {
-    "entreprise": "SOLVAY SA",
+    "entreprise": "SOLVAY",
     "elu": "Laurent PANIFOUS",
     "parti": "LIOT",
     "type": "Député",
@@ -3374,14 +3367,14 @@
     "montant": 15924
   },
   {
-    "entreprise": "ASML HOLDING (ASML)",
+    "entreprise": "ASML",
     "elu": "Laurent PANIFOUS",
     "parti": "LIOT",
     "type": "Député",
     "montant": 3555
   },
   {
-    "entreprise": "JCDECAUX SE (DEC)",
+    "entreprise": "JCDECAUX",
     "elu": "Laurent PANIFOUS",
     "parti": "LIOT",
     "type": "Député",
@@ -3563,7 +3556,7 @@
     "montant": 3403
   },
   {
-    "entreprise": "BIOMÉRIEUX",
+    "entreprise": "BIOMERIEUX",
     "elu": "Frédéric PETIT",
     "parti": "MODEM",
     "type": "Député",
@@ -3598,7 +3591,7 @@
     "montant": 82467
   },
   {
-    "entreprise": "LABEL EMMAÜS",
+    "entreprise": "LABEL EMMAUS",
     "elu": "Marie Pochon",
     "parti": "ECO",
     "type": "Député",
@@ -3668,14 +3661,14 @@
     "montant": 680
   },
   {
-    "entreprise": "SASU MAISON PRADIÉ",
+    "entreprise": "SASU MAISON PRADIE",
     "elu": "Aurélien Pradié",
     "parti": "LR",
     "type": "Député",
     "montant": 250000
   },
   {
-    "entreprise": "SASU MAISON PRADIÉ",
+    "entreprise": "SASU MAISON PRADIE",
     "elu": "Aurélien Pradié",
     "parti": "LR",
     "type": "Député",
@@ -3724,7 +3717,7 @@
     "montant": 4935
   },
   {
-    "entreprise": "UNIBAIL RODAMCO",
+    "entreprise": "UNIBAIL-RODAMCO-WESTFIELD",
     "elu": "Nicolas RAY",
     "parti": "LR",
     "type": "Député",
@@ -3766,7 +3759,7 @@
     "montant": 3953
   },
   {
-    "entreprise": "SAINT GOBAIN",
+    "entreprise": "SAINT-GOBAIN",
     "elu": "Nicolas RAY",
     "parti": "LR",
     "type": "Député",
@@ -3787,7 +3780,7 @@
     "montant": 30258
   },
   {
-    "entreprise": "SCPI EPARGNE FONCIÈRE",
+    "entreprise": "SCPI EPARGNE FONCIERE",
     "elu": "MEREANA REID ARBELOT",
     "parti": "GDR",
     "type": "Député",
@@ -3892,7 +3885,7 @@
     "montant": 2115
   },
   {
-    "entreprise": "ALSTOM REGROUPT",
+    "entreprise": "ALSTOM",
     "elu": "Laurence Robert-Dehault",
     "parti": "RN",
     "type": "Député",
@@ -4081,7 +4074,7 @@
     "montant": 145612
   },
   {
-    "entreprise": "CRÉDIT MUTUEL",
+    "entreprise": "CREDIT MUTUEL",
     "elu": "Raphael Schellenberger",
     "parti": "LR",
     "type": "Député",
@@ -4207,7 +4200,7 @@
     "montant": 44
   },
   {
-    "entreprise": "MERCEDEZ-BENZ",
+    "entreprise": "MERCEDES-BENZ GROUP",
     "elu": "Charles Sitzenstuhl",
     "parti": "REN",
     "type": "Député",
@@ -4235,7 +4228,7 @@
     "montant": 159
   },
   {
-    "entreprise": "UBISOFT ENTERTAINMENT",
+    "entreprise": "UBISOFT",
     "elu": "Charles Sitzenstuhl",
     "parti": "REN",
     "type": "Député",
@@ -4452,7 +4445,7 @@
     "montant": 34220
   },
   {
-    "entreprise": "SCOIÉTÉ GÉNÉRALE",
+    "entreprise": "SOCIETE GENERALE",
     "elu": "Vincent Thiébaut",
     "parti": "HOR",
     "type": "Député",
@@ -4473,7 +4466,7 @@
     "montant": 2014
   },
   {
-    "entreprise": "SCHNEIDER",
+    "entreprise": "SCHNEIDER ELECTRIC",
     "elu": "SABINE THILLAYE",
     "parti": "MODEM",
     "type": "Député",
@@ -4515,7 +4508,7 @@
     "montant": 1370
   },
   {
-    "entreprise": "STMICROELECTONICS",
+    "entreprise": "STMICROELECTRONICS",
     "elu": "SABINE THILLAYE",
     "parti": "MODEM",
     "type": "Député",
@@ -4543,14 +4536,14 @@
     "montant": 189
   },
   {
-    "entreprise": "CASINO-GUICHARD",
+    "entreprise": "CASINO",
     "elu": "Nicolas Turquois",
     "parti": "MODEM",
     "type": "Député",
     "montant": 1
   },
   {
-    "entreprise": "JACQUET-MÉTAL SERVICES",
+    "entreprise": "JACQUET-METAL SERVICES",
     "elu": "Nicolas Turquois",
     "parti": "MODEM",
     "type": "Député",
@@ -4662,7 +4655,7 @@
     "montant": 15
   },
   {
-    "entreprise": "SNC JOUBERT 32",
+    "entreprise": "UBER",
     "elu": "Anne-Cécile Violland",
     "parti": "HOR",
     "type": "Député",
@@ -4732,7 +4725,7 @@
     "montant": 10000
   },
   {
-    "entreprise": "SELARL LORRAINE DÉFENSE & CONSEIL",
+    "entreprise": "SELARL LORRAINE DEFENSE & CONSEIL",
     "elu": "Stéphane VIRY",
     "parti": "LR",
     "type": "Député",
@@ -4795,28 +4788,28 @@
     "montant": 21140
   },
   {
-    "entreprise": "VEOLIA ENVIRONNEMENT",
+    "entreprise": "VEOLIA",
     "elu": "Jean-Luc WARSMANN",
     "parti": "LIOT",
     "type": "Député",
     "montant": 2712
   },
   {
-    "entreprise": "SAINT GOBAIN CIE",
+    "entreprise": "SAINT-GOBAIN",
     "elu": "Jean-Luc WARSMANN",
     "parti": "LIOT",
     "type": "Député",
     "montant": 10904
   },
   {
-    "entreprise": "CAP GEMINI",
+    "entreprise": "CAPGEMINI",
     "elu": "Jean-Luc WARSMANN",
     "parti": "LIOT",
     "type": "Député",
     "montant": 1911
   },
   {
-    "entreprise": "SOCIÉTÉ GÉNÉRALE",
+    "entreprise": "SOCIETE GENERALE",
     "elu": "Jean-Luc WARSMANN",
     "parti": "LIOT",
     "type": "Député",
@@ -4851,7 +4844,7 @@
     "montant": 728
   },
   {
-    "entreprise": "ADP",
+    "entreprise": "GROUPE ADP",
     "elu": "Jean-Luc WARSMANN",
     "parti": "LIOT",
     "type": "Député",
