@@ -385,7 +385,7 @@
     "montant": 3672
   },
   {
-    "entreprise": "HERMÈS INTL",
+    "entreprise": "HERMES",
     "elu": "Yaël Braun-Pivet",
     "parti": "REN",
     "type": "Député",
@@ -3141,6 +3141,13 @@
     "parti": "MODEM",
     "type": "Député",
     "montant": 300
+  },
+  {
+    "entreprise": "SCI [DONN��ES NON PUBLIÉES]",
+    "elu": "Louise Morel",
+    "parti": "MODEM",
+    "type": "Député",
+    "montant": 1612
   },
   {
     "entreprise": "ARC MANAGEMENT",
