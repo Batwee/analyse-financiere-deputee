@@ -16,16 +16,14 @@ function downloadXML(url) {
   });
 }
 
-// Extraction robuste du montant/évaluation en évitant de lire une année
+// Extrait la valeur d'évaluation sans lire l'année
 function parseEvaluationMontant(item) {
-  // En priorité la valeur d'évaluation des parts/actions (champ 'evaluation')
   let rawVal = item.evaluation;
 
   if (rawVal === undefined || rawVal === null || rawVal === '') {
     rawVal = item.montant || item.valeur || '0';
   }
 
-  // Si 'evaluation' ou 'montant' est un objet complexe
   if (typeof rawVal === 'object') {
     if (rawVal.evaluation) rawVal = rawVal.evaluation;
     else if (rawVal.montant) rawVal = rawVal.montant;
@@ -33,13 +31,11 @@ function parseEvaluationMontant(item) {
   }
 
   const valStr = String(rawVal).trim();
-  // Suppression des espaces insecables et normaux
   const cleanVal = valStr.replace(/\s+/g, '');
   const matches = cleanVal.match(/\d+/);
   return matches ? parseFloat(matches[0]) : 0;
 }
 
-// Filtre député souple et fiable
 function isDepute(decla) {
   const jsonStr = JSON.stringify(decla).toLowerCase();
   return (
@@ -50,35 +46,37 @@ function isDepute(decla) {
   );
 }
 
-// Extrait récursivement les éléments ayant un nomSociete
-function extractItems(node) {
+// Extrait les participations en cherchant dans toute la structure de la déclaration
+function extractParticipations(node) {
   let list = [];
   if (!node) return list;
+
   if (Array.isArray(node)) {
-    for (const item of node) list.push(...extractItems(item));
+    for (const item of node) list.push(...extractParticipations(item));
   } else if (typeof node === 'object') {
-    if (node.nomSociete) {
+    // Si c'est un bloc entreprise/société
+    const nom = node.nomSociete || node.nom_societe;
+    if (nom && typeof nom === 'string' && nom.trim().length > 0) {
       list.push(node);
-    } else {
-      for (const key of Object.keys(node)) {
-        list.push(...extractItems(node[key]));
+    }
+    for (const key of Object.keys(node)) {
+      if (typeof node[key] === 'object') {
+        list.push(...extractParticipations(node[key]));
       }
     }
   }
   return list;
 }
 
-// Extrait le nom complet depuis le nœud declarant
 function getEluNom(decla) {
   const declarant = decla?.declarant || {};
   const prenom = String(declarant.prenom || declarant.prenomDeclarant || '').trim();
   const nom = String(declarant.nom || declarant.nomDeclarant || '').trim();
-  
+
   if (prenom || nom) {
     return `${prenom} ${nom}`.trim();
   }
 
-  // Fallback si la structure declarant est différente
   const generalNom = String(decla?.general?.declarant?.nom || '').trim();
   const generalPrenom = String(decla?.general?.declarant?.prenom || '').trim();
   if (generalNom || generalPrenom) {
@@ -96,7 +94,7 @@ async function processData() {
     const parser = new XMLParser({
       ignoreAttributes: false,
       parseNodeValue: false,
-      isArray: (name) => ['declaration', 'items'].includes(name)
+      isArray: (name) => ['declaration', 'items', 'item'].includes(name)
     });
 
     const parsedObj = parser.parse(xmlText);
@@ -125,16 +123,11 @@ async function processData() {
         'Non renseigné'
       ).trim();
 
-      // Isolation explicite de la section participations financieres
-      const partSection = decla?.participationsFinancieresDto;
-      if (!partSection || partSection.neant === 'true' || partSection.neant === true) {
-        continue;
-      }
-
-      const itemsFound = extractItems(partSection);
+      // On extrait tous les items "société" de la déclaration
+      const itemsFound = extractParticipations(decla);
 
       for (const item of itemsFound) {
-        const nomSociete = String(item.nomSociete || '').trim().toUpperCase();
+        const nomSociete = String(item.nomSociete || item.nom_societe || '').trim().toUpperCase();
         if (!nomSociete) continue;
 
         const montant = parseEvaluationMontant(item);
