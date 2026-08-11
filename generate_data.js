@@ -16,57 +16,65 @@ function downloadXML(url) {
   });
 }
 
-// Recherche récursive universelle de tous les objets ayant une société/organisme
-function extractAllParticipations(obj) {
-  let results = [];
-  if (!obj || typeof obj !== 'object') return results;
+// Extrait la vraie valeur financière (€) sans capturer l'année
+function parseEvaluationMontant(item) {
+  // En priorité la valeur d'évaluation des parts/actions
+  let rawVal = item.evaluation;
 
-  if (Array.isArray(obj)) {
-    for (const item of obj) {
-      results.push(...extractAllParticipations(item));
-    }
-  } else {
-    // Si l'objet contient un nom de société ou d'organisme
-    const nomSociete = obj.nomSociete || obj.nomOrganisme || obj.denomination || obj.nom_societe;
-    if (nomSociete && typeof nomSociete === 'string' && nomSociete.trim().length > 0) {
-      results.push(obj);
-    }
-
-    // Poursuite de la recherche dans les sous-propriétés
-    for (const key of Object.keys(obj)) {
-      if (typeof obj[key] === 'object') {
-        results.push(...extractAllParticipations(obj[key]));
-      }
-    }
+  // Si absent, cherche la rémunération/montant
+  if (rawVal === undefined || rawVal === null) {
+    rawVal = item.montant || item.valeur || '0';
   }
-  return results;
-}
 
-// Extraction propre du montant numérique
-function parseMontant(item) {
-  const rawVal = item.evaluation || item.montant || item.valeur || item.remuneration || item.capital || '0';
-  const valStr = typeof rawVal === 'object' ? JSON.stringify(rawVal) : String(rawVal);
+  // Si c'est un objet (ex: ventilation par année), on cherche la propriété 'montant' ou 'evaluation'
+  if (typeof rawVal === 'object') {
+    if (rawVal.montant) rawVal = rawVal.montant;
+    else if (rawVal.evaluation) rawVal = rawVal.evaluation;
+    else rawVal = JSON.stringify(rawVal);
+  }
 
+  const valStr = String(rawVal).trim();
+  // Nettoie les espaces et extrait la valeur numérique
   const cleanVal = valStr.replace(/\s+/g, '');
   const matches = cleanVal.match(/\d+/);
   return matches ? parseFloat(matches[0]) : 0;
 }
 
+// Vérification stricte du mandat de député
 function isDepute(decla) {
-  const jsonStr = JSON.stringify(decla).toLowerCase();
+  const qualiteObj = decla?.qualiteMandat || {};
+  const qualiteStr = JSON.stringify(qualiteObj).toLowerCase();
+  const titre = String(decla?.qualiteDeclarantForAffichage || '').toLowerCase();
+
   return (
-    jsonStr.includes('dép') ||
-    jsonStr.includes('depu') ||
-    jsonStr.includes('mandat parlementaire') ||
-    jsonStr.includes('assemblée nationale') ||
-    jsonStr.includes('assemblee nationale')
+    titre.includes('député') ||
+    titre.includes('depute') ||
+    qualiteStr.includes('depute') ||
+    qualiteStr.includes('député')
   );
+}
+
+function extractItems(node) {
+  let list = [];
+  if (!node) return list;
+  if (Array.isArray(node)) {
+    for (const item of node) list.push(...extractItems(item));
+  } else if (typeof node === 'object') {
+    if (node.nomSociete) {
+      list.push(node);
+    } else {
+      for (const key of Object.keys(node)) {
+        list.push(...extractItems(node[key]));
+      }
+    }
+  }
+  return list;
 }
 
 async function processData() {
   try {
     const xmlText = await downloadXML(XML_URL);
-    console.log('Parsing du document XML...');
+    console.log('Parsing XML...');
 
     const parser = new XMLParser({
       ignoreAttributes: false,
@@ -82,7 +90,7 @@ async function processData() {
       declarations = [declarations];
     }
 
-    console.log(`Déclarations analysées : ${declarations.length}`);
+    console.log(`Nombre total de déclarations : ${declarations.length}`);
 
     const records = [];
     let countDeputes = 0;
@@ -91,9 +99,12 @@ async function processData() {
       if (!isDepute(decla)) continue;
       countDeputes++;
 
+      // Récupération stricte du nom du député
       const prenom = String(decla?.declarant?.prenom || '').trim();
       const nom = String(decla?.declarant?.nom || '').trim();
-      const eluNom = `${prenom} ${nom}`.trim() || 'Inconnu';
+      const eluNom = `${prenom} ${nom}`.trim();
+
+      if (!eluNom || eluNom === 'Inconnu') continue;
 
       let parti = String(decla?.qualiteMandat?.organe?.codeOrgane || '').trim();
       if (!parti) {
@@ -104,18 +115,19 @@ async function processData() {
         ).trim();
       }
 
-      // Ciblage de la rubrique participations financières ou recherche globale sur la déclaration
-      const partSection = decla?.participationsFinancieresDto || decla;
-      const itemsFound = extractAllParticipations(partSection);
+      // Extraction STRICTE des participations financières en capital/actions
+      const partSection = decla?.participationsFinancieresDto;
+      if (!partSection || partSection.neant === 'true' || partSection.neant === true) {
+        continue;
+      }
+
+      const itemsFound = extractItems(partSection);
 
       for (const item of itemsFound) {
-        const nomSociete = String(
-          item.nomSociete || item.nomOrganisme || item.denomination || item.nom_societe || ''
-        ).trim().toUpperCase();
-
+        const nomSociete = String(item.nomSociete || '').trim().toUpperCase();
         if (!nomSociete) continue;
 
-        const montant = parseMontant(item);
+        const montant = parseEvaluationMontant(item);
 
         records.push({
           entreprise: nomSociete,
@@ -126,15 +138,15 @@ async function processData() {
       }
     }
 
-    console.log(`Déclarations de députés identifiées : ${countDeputes}`);
-    console.log(`Participations financières extraites : ${records.length}`);
+    console.log(`Députés traités : ${countDeputes}`);
+    console.log(`Participations financières réelles extraites : ${records.length}`);
 
     if (records.length === 0) {
       throw new Error("Aucune participation n'a été extraite.");
     }
 
     fs.writeFileSync(OUTPUT_FILE, JSON.stringify(records, null, 2), 'utf-8');
-    console.log(`Fichier ${OUTPUT_FILE} mis à jour avec succès (${records.length} entrées).`);
+    console.log(`Fichier ${OUTPUT_FILE} généré avec succès.`);
 
   } catch (error) {
     console.error('Erreur :', error.message);
