@@ -16,7 +16,7 @@ function downloadXML(url) {
   });
 }
 
-// Parcours récursif pour trouver tous les objets contenant 'nomSociete'
+// Extraction récursive de toutes les participations financières (présence de 'nomSociete')
 function extractParticipations(node) {
   let list = [];
   if (!node) return list;
@@ -37,13 +37,22 @@ function extractParticipations(node) {
   return list;
 }
 
-// Fonction pour déterminer si la déclaration concerne un député
-function isDeclarationDepute(decla) {
-  const qualiteObj = decla?.qualiteMandat || {};
-  const qualiteStr = JSON.stringify(qualiteObj).toLowerCase();
+// Détection souple et universelle des députés
+function isDeputeDeclaration(decla) {
+  // 1. Vérification par champs spécifiques
+  const titre = String(decla?.qualiteDeclarantForAffichage || '').toLowerCase();
+  const qualite = String(decla?.qualiteMandat?.typeMandat || decla?.qualiteMandat || '').toLowerCase();
   
-  // Vérification de la présence de mots-clés relatifs au mandat de député
-  return qualiteStr.includes('depute') || qualiteStr.includes('député') || qualiteStr.includes('députée');
+  if (titre.includes('deput') || titre.includes('déput') || qualite.includes('deput') || qualite.includes('déput')) {
+    return true;
+  }
+
+  // 2. Repli : inspection du texte sérialisé de la déclaration (limité aux métadonnées du declarant/mandat)
+  const declarantStr = JSON.stringify(decla?.declarant || {}).toLowerCase();
+  const qualiteStr = JSON.stringify(decla?.qualiteMandat || {}).toLowerCase();
+  
+  return declarantStr.includes('deput') || qualiteStr.includes('deput') || 
+         declarantStr.includes('déput') || qualiteStr.includes('déput');
 }
 
 async function processData() {
@@ -57,20 +66,29 @@ async function processData() {
     });
 
     const parsedObj = parser.parse(xmlText);
-    const rootContainer = parsedObj?.declarations || parsedObj;
-    let declarations = rootContainer?.declaration || [];
     
+    // Récupération souple des déclarations
+    let declarations = [];
+    if (parsedObj?.declarations?.declaration) {
+      declarations = parsedObj.declarations.declaration;
+    } else if (parsedObj?.declaration) {
+      declarations = parsedObj.declaration;
+    } else {
+      // Recherche au niveau racine si la structure est modifiée
+      declarations = extractParticipations(parsedObj); 
+    }
+
     if (!Array.isArray(declarations)) {
       declarations = [declarations];
     }
 
-    console.log(`Déclarations trouvées dans le XML : ${declarations.length}`);
+    console.log(`Déclarations analysées : ${declarations.length}`);
 
     const records = [];
     let countDeputes = 0;
 
     for (const decla of declarations) {
-      if (!isDeclarationDepute(decla)) continue;
+      if (!isDeputeDeclaration(decla)) continue;
       countDeputes++;
 
       const prenom = String(decla?.declarant?.prenom || '').trim();
@@ -79,12 +97,10 @@ async function processData() {
 
       let parti = String(decla?.qualiteMandat?.organe?.codeOrgane || '').trim();
       if (!parti) {
-        parti = String(decla?.qualiteMandat?.labelOrgane || 'Non renseigné').trim();
+        parti = String(decla?.qualiteMandat?.labelOrgane || decla?.qualiteMandat?.organe?.label || 'Non renseigné').trim();
       }
 
       const partSection = decla?.participationsFinancieresDto;
-      
-      // Si la section est absente ou déclarée à "néant"
       if (!partSection || partSection.neant === true || partSection.neant === 'true') {
         continue;
       }
@@ -94,7 +110,6 @@ async function processData() {
       for (const item of items) {
         const nomSociete = String(item?.nomSociete || '').trim().toUpperCase();
         
-        // L'évaluation peut être sous forme d'une chaîne ou d'un objet (ex: évaluation annuelle)
         let evaluationRaw = item?.evaluation;
         if (typeof evaluationRaw === 'object') {
           evaluationRaw = JSON.stringify(evaluationRaw);
@@ -121,11 +136,11 @@ async function processData() {
     console.log(`Participations financières extraites : ${records.length}`);
 
     if (records.length === 0) {
-      throw new Error("L'extraction a renvoyé 0 résultat. Vérification requise de la structure.");
+      throw new Error("L'extraction n'a renvoyé aucun résultat.");
     }
 
     fs.writeFileSync(OUTPUT_FILE, JSON.stringify(records, null, 2), 'utf-8');
-    console.log(`Fichier ${OUTPUT_FILE} mis à jour avec succès (${records.length} entrées).`);
+    console.log(`Fichier ${OUTPUT_FILE} généré avec succès.`);
 
   } catch (error) {
     console.error('Erreur :', error.message);
