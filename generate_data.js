@@ -38,6 +38,47 @@ function getString(val) {
   return '';
 }
 
+// Fonction pour nettoyer et unifier les noms des entreprises
+function standardizeCompanyName(name) {
+  if (!name) return '';
+
+  // 1. Suppression des sauts de ligne et de la balise de caviardage
+  let n = name.replace(/\[DONNÉES NON PUBLIÉES\]/gi, ' ')
+              .replace(/\[DONNEES NON PUBLIEES\]/gi, ' ')
+              .replace(/[\n\r]/g, ' ')
+              .replace(/\s+/g, ' ')
+              .trim()
+              .toUpperCase();
+
+  // 2. Unification TOTAL
+  if (
+    n.includes('TOTALENERGIE') || 
+    n.includes('TOTAL ENERGIE') || 
+    n.includes('TOTALÉNERGIE') || 
+    n === 'TOTAL ENERGIES SE' || 
+    n === 'TOTAL'
+  ) {
+    return 'TOTAL';
+  }
+
+  // 3. Unification CREDIT AGRICOLE (inclut les "CAISSE LOCALE CREDIT AGRICOLE", etc.)
+  if (n.includes('CREDIT AGRICOLE') || n.includes('CRÉDIT AGRICOLE')) {
+    return 'CREDIT AGRICOLE';
+  }
+
+  // 4. Unification HERMES
+  if (n === 'HERMES INTERNATIONAL' || n === 'HERMES INTL' || n === 'HERMÈS INTERNATIONAL') {
+    return 'HERMES';
+  }
+
+  // 5. Unification AIRBUS
+  if (n === 'AIRBUS SE') {
+    return 'AIRBUS';
+  }
+
+  return n;
+}
+
 // Extrait la valeur numérique des objets imbriqués
 function parseNumeric(val) {
   if (val === undefined || val === null || val === '') return 0;
@@ -62,7 +103,6 @@ function parseNumeric(val) {
   return 0;
 }
 
-// Nettoie les prénoms multiples de la HATVP (ex: "Emmanuel, Jean" -> "Emmanuel")
 function getEluNom(decla) {
   const declarant = decla?.declarant || decla?.general?.declarant || {};
   let prenom = getString(declarant.prenom || declarant.prenomDeclarant).split(',')[0].trim();
@@ -79,10 +119,8 @@ function normalizeName(str) {
 async function processData() {
   try {
     const parlementairesMap = new Map();
-
     console.log('Chargement des listes officielles (Députés & Sénateurs)...');
     
-    // 1. Récupération des Députés
     try {
       const depData = await fetchJSON(DEPUTES_API_URL);
       if (depData?.deputes) {
@@ -96,7 +134,6 @@ async function processData() {
       }
     } catch (e) { console.warn('Erreur API Députés'); }
 
-    // 2. Récupération des Sénateurs
     try {
       const senData = await fetchJSON(SENATEURS_API_URL);
       if (senData?.senateurs) {
@@ -112,7 +149,6 @@ async function processData() {
 
     console.log(`-> ${parlementairesMap.size} parlementaires officiels indexés.`);
 
-    // 3. Téléchargement et Parsing HATVP
     const xmlText = await downloadXML(XML_URL);
     console.log('Parsing du document XML...');
 
@@ -135,15 +171,12 @@ async function processData() {
       if (!eluNom || eluNom === 'Inconnu') continue;
 
       const normName = normalizeName(eluNom);
-
-      // FILTRE INTRANSIGEANT : Si le nom n'est pas dans l'API, on passe au suivant.
       if (!parlementairesMap.has(normName)) continue;
 
       countMatched++;
       const apiInfo = parlementairesMap.get(normName);
       const parti = apiInfo.parti;
 
-      // Aplatissement du JSON pour trouver toutes les parts financières
       const allNodes = [];
       function traverse(node) {
         if (!node || typeof node !== 'object') return;
@@ -155,7 +188,10 @@ async function processData() {
       traverse(decla);
 
       for (const node of allNodes) {
-        const nomSociete = getString(node.nomSociete || node.nom_societe || node.denomination).trim().toUpperCase();
+        // APPLICATION DE LA FONCTION DE NETTOYAGE ICI
+        const rawNom = getString(node.nomSociete || node.nom_societe || node.denomination);
+        const nomSociete = standardizeCompanyName(rawNom);
+        
         if (!nomSociete) continue;
 
         let rawVal = node.evaluation;
@@ -175,7 +211,7 @@ async function processData() {
             entreprise: nomSociete,
             elu: eluNom,
             parti: parti,
-            type: apiInfo.type, // Ajoute "Député" ou "Sénateur" dans le JSON
+            type: apiInfo.type,
             montant: montant
           });
         }
