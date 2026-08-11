@@ -4,6 +4,7 @@ const { XMLParser } = require('fast-xml-parser');
 
 const XML_URL = 'https://www.hatvp.fr/livraison/merge/declarations.xml';
 const DEPUTES_API_URL = 'https://www.nosdeputes.fr/deputes/json';
+const SENATEURS_API_URL = 'https://www.nossenateurs.fr/senateurs/json';
 const OUTPUT_FILE = 'hatvp_data.json';
 
 function fetchJSON(url) {
@@ -21,7 +22,7 @@ function fetchJSON(url) {
 
 function downloadXML(url) {
   return new Promise((resolve, reject) => {
-    console.log('Téléchargement du XML HATVP...');
+    console.log('Téléchargement du XML HATVP (cela peut prendre quelques secondes)...');
     https.get(url, { headers: { 'User-Agent': 'Mozilla/5.0' } }, (res) => {
       let data = '';
       res.on('data', chunk => data += chunk);
@@ -30,7 +31,6 @@ function downloadXML(url) {
   });
 }
 
-// Sécurise la lecture d'une chaîne de caractères face aux objets inattendus
 function getString(val) {
   if (!val) return '';
   if (typeof val === 'string') return val;
@@ -38,7 +38,7 @@ function getString(val) {
   return '';
 }
 
-// Extracteur ultime : fouille dans n'importe quel objet/sous-objet pour trouver le vrai chiffre
+// Extrait la valeur numérique des objets imbriqués
 function parseNumeric(val) {
   if (val === undefined || val === null || val === '') return 0;
   if (typeof val === 'number') return val;
@@ -54,32 +54,20 @@ function parseNumeric(val) {
     if (val.valeur !== undefined) return parseNumeric(val.valeur);
     if (val.evaluation !== undefined) return parseNumeric(val.evaluation);
     
-    // Si la structure est encore plus profonde, on scanne les clés
     for (const key of Object.keys(val)) {
       const res = parseNumeric(val[key]);
       if (res > 0) return res;
     }
   }
-  
   return 0;
 }
 
-function isParlementaire(decla) {
-  const qualite = JSON.stringify(
-    decla?.qualiteMandat || decla?.general?.qualiteMandat || decla?.declarant?.qualiteMandat || ''
-  ).toLowerCase();
-
-  return (
-    qualite.includes('depute') || qualite.includes('dép') ||
-    qualite.includes('senat') || qualite.includes('sénat') ||
-    qualite.includes('assemblee') || qualite.includes('assemblée')
-  );
-}
-
+// Nettoie les prénoms multiples de la HATVP (ex: "Emmanuel, Jean" -> "Emmanuel")
 function getEluNom(decla) {
   const declarant = decla?.declarant || decla?.general?.declarant || {};
-  const prenom = getString(declarant.prenom || declarant.prenomDeclarant).trim();
-  const nom = getString(declarant.nom || declarant.nomDeclarant).trim();
+  let prenom = getString(declarant.prenom || declarant.prenomDeclarant).split(',')[0].trim();
+  let nom = getString(declarant.nom || declarant.nomDeclarant).trim();
+  
   if (prenom || nom) return `${prenom} ${nom}`.trim();
   return 'Inconnu';
 }
@@ -90,25 +78,44 @@ function normalizeName(str) {
 
 async function processData() {
   try {
-    console.log('Chargement des données API Députés...');
-    const deputesMap = new Map();
+    const parlementairesMap = new Map();
+
+    console.log('Chargement des listes officielles (Députés & Sénateurs)...');
+    
+    // 1. Récupération des Députés
     try {
-      const deputesData = await fetchJSON(DEPUTES_API_URL);
-      if (deputesData?.deputes) {
-        for (const entry of deputesData.deputes) {
+      const depData = await fetchJSON(DEPUTES_API_URL);
+      if (depData?.deputes) {
+        for (const entry of depData.deputes) {
           const d = entry.depute;
-          const keyName = normalizeName(d.nom);
-          deputesMap.set(keyName, { parti: d.parti_rattachement || d.groupe_sigle || 'Non renseigné' });
+          parlementairesMap.set(normalizeName(d.nom), { 
+            parti: d.groupe_sigle || 'Non renseigné',
+            type: 'Député'
+          });
         }
       }
-    } catch (e) {
-      console.warn('API députés indisponible, bascule sur les données XML seules.');
-    }
+    } catch (e) { console.warn('Erreur API Députés'); }
 
+    // 2. Récupération des Sénateurs
+    try {
+      const senData = await fetchJSON(SENATEURS_API_URL);
+      if (senData?.senateurs) {
+        for (const entry of senData.senateurs) {
+          const s = entry.senateur;
+          parlementairesMap.set(normalizeName(s.nom), { 
+            parti: s.groupe_sigle || 'Non renseigné',
+            type: 'Sénateur'
+          });
+        }
+      }
+    } catch (e) { console.warn('Erreur API Sénateurs'); }
+
+    console.log(`-> ${parlementairesMap.size} parlementaires officiels indexés.`);
+
+    // 3. Téléchargement et Parsing HATVP
     const xmlText = await downloadXML(XML_URL);
     console.log('Parsing du document XML...');
 
-    // LE SECRET EST ICI : ignoreAttributes simplifie toutes les balises complexes en texte brut
     const parser = new XMLParser({
       ignoreAttributes: true,
       parseTagValue: true 
@@ -117,31 +124,26 @@ async function processData() {
     const parsedObj = parser.parse(xmlText);
     const rootContainer = parsedObj?.declarations || parsedObj;
     let declarations = rootContainer?.declaration || [];
-
     if (!Array.isArray(declarations)) declarations = [declarations];
 
     const records = [];
     const setUnique = new Set();
-    let countParlementaires = 0;
+    let countMatched = 0;
 
     for (const decla of declarations) {
-      if (!isParlementaire(decla)) continue;
-
       const eluNom = getEluNom(decla);
       if (!eluNom || eluNom === 'Inconnu') continue;
 
-      countParlementaires++;
-
       const normName = normalizeName(eluNom);
-      const apiInfo = deputesMap.get(normName);
 
-      let parti = apiInfo?.parti;
-      if (!parti || parti === 'Non renseigné') {
-        const organe = decla?.qualiteMandat?.organe || decla?.qualiteMandat;
-        parti = getString(organe?.codeOrgane || organe?.labelOrgane || organe?.label || 'Non renseigné').trim();
-      }
+      // FILTRE INTRANSIGEANT : Si le nom n'est pas dans l'API, on passe au suivant.
+      if (!parlementairesMap.has(normName)) continue;
 
-      // APLATISSEMENT TOTAL : on récupère tous les objets imbriqués de la déclaration
+      countMatched++;
+      const apiInfo = parlementairesMap.get(normName);
+      const parti = apiInfo.parti;
+
+      // Aplatissement du JSON pour trouver toutes les parts financières
       const allNodes = [];
       function traverse(node) {
         if (!node || typeof node !== 'object') return;
@@ -153,21 +155,17 @@ async function processData() {
       traverse(decla);
 
       for (const node of allNodes) {
-        // EMPREINTE 1 : Doit avoir un nom d'entreprise
         const nomSociete = getString(node.nomSociete || node.nom_societe || node.denomination).trim().toUpperCase();
         if (!nomSociete) continue;
 
-        // EMPREINTE 2 : Doit avoir un champ d'évaluation du capital (exclut les simples salaires)
         let rawVal = node.evaluation;
         if (rawVal === undefined) rawVal = node.capitalDetenu;
         if (rawVal === undefined) rawVal = node.valeurParticipation;
         
-        // S'il n'y a ni evaluation, ni capital, c'est probablement un mandat bénévole ou un salaire, on ignore
         if (rawVal === undefined) continue;
 
         const montant = parseNumeric(rawVal);
 
-        // FILTRE STRICT : Uniquement les montants supérieurs à 0 €
         if (montant > 0) {
           const uniqueKey = `${eluNom}-${nomSociete}-${montant}`;
           if (setUnique.has(uniqueKey)) continue;
@@ -177,14 +175,15 @@ async function processData() {
             entreprise: nomSociete,
             elu: eluNom,
             parti: parti,
+            type: apiInfo.type, // Ajoute "Député" ou "Sénateur" dans le JSON
             montant: montant
           });
         }
       }
     }
 
-    console.log(`Parlementaires identifiés : ${countParlementaires}`);
-    console.log(`Participations financières valides (> 0 €) : ${records.length}`);
+    console.log(`Déclarations de parlementaires trouvées dans la HATVP : ${countMatched}`);
+    console.log(`Participations financières extraites (> 0 €) : ${records.length}`);
 
     if (records.length === 0) {
       throw new Error("Aucune participation > 0 € n'a été extraite.");
