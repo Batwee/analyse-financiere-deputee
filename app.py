@@ -3,10 +3,9 @@ import pandas as pd
 import yfinance as yf
 import os
 
-# PENSE À VÉRIFIER CETTE URL : elle doit pointer vers ton fichier JSON brut sur GitHub
 DATA_URL = "https://raw.githubusercontent.com/Batwee/analyse-financiere-deputee/refs/heads/main/hatvp_data.json"
 
-# Configuration de la page
+# Configuration de la page Streamlit
 st.set_page_config(
     page_title="HATVP — Participations Financières & Bourse",
     page_icon="📈",
@@ -34,17 +33,25 @@ def check_if_listed(company_name):
     """Vérifie si une entreprise est cotée en bourse via mots-clés + Yahoo Finance API."""
     name_upper = str(company_name).upper().strip()
     
+    # 0. EXCLUSION DES FAUX POSITIFS (Statuts juridiques et sociétés immobilières)
+    mots_exclus = ["SCI", "S.C.I.", "S.C.I", "SCPI", "SARL", "SAS", "EURL", "SOCIETE CIVILE IMMOBILIERE"]
+    words = name_upper.split()
+    
+    if any(mot in words for mot in mots_exclus) or name_upper in mots_exclus:
+        return False
+    
     # 1. Vérification rapide par liste Euronext / CAC40
     for kw in KNOWN_LISTED:
         if kw in name_upper:
             return True
             
-    # 2. Vérification dynamique via Yahoo Finance API
+    # 2. Vérification dynamique via Yahoo Finance API (pour les tickers courts uniquement)
     try:
-        ticker = yf.Ticker(name_upper)
-        hist = ticker.history(period="1d")
-        if not hist.empty:
-            return True
+        if len(name_upper) <= 10:
+            ticker = yf.Ticker(name_upper)
+            hist = ticker.history(period="1d")
+            if not hist.empty:
+                return True
     except Exception:
         pass
         
