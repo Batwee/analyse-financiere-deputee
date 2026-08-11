@@ -30,19 +30,15 @@ function downloadXML(url) {
   });
 }
 
-// Extraction robuste de la valeur de la participation
+// Nettoie et extrait le montant de la participation
 function parseEvaluationMontant(item) {
   let rawVal = item.evaluation;
-
   if (rawVal === undefined || rawVal === null || rawVal === '') {
     rawVal = item.montant || item.valeur || item.valeurParticipation || '0';
   }
 
   if (typeof rawVal === 'object') {
-    if (rawVal.evaluation) rawVal = rawVal.evaluation;
-    else if (rawVal.montant) rawVal = rawVal.montant;
-    else if (rawVal.valeur) rawVal = rawVal.valeur;
-    else rawVal = JSON.stringify(rawVal);
+    rawVal = rawVal.evaluation || rawVal.montant || rawVal.valeur || JSON.stringify(rawVal);
   }
 
   const valStr = String(rawVal).trim();
@@ -63,26 +59,29 @@ function isParlementaire(decla) {
   );
 }
 
-// Parcours récursif pour trouver tous les nœuds de sociétés dans la section financière
-function extractParticipationsFinancieres(node) {
-  let list = [];
-  if (!node) return list;
+// Détection souple des entreprises dans n'importe quelle sous-structure
+function findParticipationsInTree(obj) {
+  let results = [];
+  if (!obj) return results;
 
-  if (Array.isArray(node)) {
-    for (const item of node) list.push(...extractParticipationsFinancieres(item));
-  } else if (typeof node === 'object') {
-    const nom = node.nomSociete || node.nom_societe || node.denomination;
+  if (Array.isArray(obj)) {
+    for (const child of obj) {
+      results.push(...findParticipationsInTree(child));
+    }
+  } else if (typeof obj === 'object') {
+    // Si l'objet possède un nom de société ou d'organisme
+    const nom = obj.nomSociete || obj.nom_societe || obj.denomination || obj.nomOrganisme;
     if (nom && typeof nom === 'string' && nom.trim().length > 0) {
-      list.push(node);
+      results.push(obj);
     } else {
-      for (const key of Object.keys(node)) {
-        if (typeof node[key] === 'object') {
-          list.push(...extractParticipationsFinancieres(node[key]));
+      for (const key of Object.keys(obj)) {
+        if (typeof obj[key] === 'object') {
+          results.push(...findParticipationsInTree(obj[key]));
         }
       }
     }
   }
-  return list;
+  return results;
 }
 
 function getEluNom(decla) {
@@ -136,7 +135,8 @@ async function processData() {
     const parser = new XMLParser({
       ignoreAttributes: false,
       parseNodeValue: false,
-      isArray: (name) => ['declaration', 'items', 'item'].includes(name)
+      // Forcer toutes ces balises récurrentes à être des tableaux JS
+      isArray: (name) => ['declaration', 'items', 'item', 'participationsFinancieresDto'].includes(name)
     });
 
     const parsedObj = parser.parse(xmlText);
@@ -172,19 +172,23 @@ async function processData() {
         ).trim();
       }
 
-      // Récupération de la section des participations financières
-      const sectionFinanciere = decla?.participationsFinancieresDto;
-      if (!sectionFinanciere) continue;
+      // Recherche prioritaire dans la propriété participationsFinancieresDto
+      let partSection = decla?.participationsFinancieresDto;
+      
+      // Fallback : recherche sur l'ensemble de la déclaration si non trouvé sous la clé exacte
+      if (!partSection) {
+        partSection = decla;
+      }
 
-      const itemsFound = extractParticipationsFinancieres(sectionFinanciere);
+      const itemsFound = findParticipationsInTree(partSection);
 
       for (const item of itemsFound) {
-        const nomSociete = String(item.nomSociete || item.nom_societe || item.denomination || '').trim().toUpperCase();
+        const nomSociete = String(item.nomSociete || item.nom_societe || item.denomination || item.nomOrganisme || '').trim().toUpperCase();
         if (!nomSociete) continue;
 
         const montant = parseEvaluationMontant(item);
 
-        // Déduplication (Même élu + Même entreprise + Même montant)
+        // Déduplication (Élu + Société + Montant)
         const uniqueKey = `${eluNom}-${nomSociete}-${montant}`;
         if (setUnique.has(uniqueKey)) continue;
         setUnique.add(uniqueKey);
@@ -206,7 +210,7 @@ async function processData() {
     }
 
     fs.writeFileSync(OUTPUT_FILE, JSON.stringify(records, null, 2), 'utf-8');
-    console.log(`Fichier ${OUTPUT_FILE} généré avec succès.`);
+    console.log(`Fichier ${OUTPUT_FILE} généré avec succès (${records.length} entrées).`);
 
   } catch (error) {
     console.error('Erreur :', error.message);
