@@ -38,12 +38,12 @@ function getString(val) {
   return '';
 }
 
-// Fonction pour nettoyer et unifier les noms des entreprises
+// Fonction pour nettoyer et unifier les noms des entreprises (Anti-accents et doublons)
 function standardizeCompanyName(name) {
   if (!name) return '';
 
-  // 1. Suppression des sauts de ligne et de la balise de caviardage
-  let n = name.replace(/\[DONNÉES NON PUBLIÉES\]/gi, ' ')
+  // 1. Enlever les accents (É devient E) et tout passer en majuscules pour comparer facilement
+  let n = name.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
               .replace(/\[DONNEES NON PUBLIEES\]/gi, ' ')
               .replace(/[\n\r]/g, ' ')
               .replace(/\s+/g, ' ')
@@ -51,32 +51,32 @@ function standardizeCompanyName(name) {
               .toUpperCase();
 
   // 2. Unification TOTAL
-  if (
-    n.includes('TOTALENERGIE') || 
-    n.includes('TOTAL ENERGIE') || 
-    n.includes('TOTALÉNERGIE') || 
-    n === 'TOTAL ENERGIES SE' || 
-    n === 'TOTAL'
-  ) {
+  if (n.includes('TOTALENERGIE') || n.includes('TOTAL ENERGIE') || n === 'TOTAL' || n === 'TOTAL ENERGIES SE') {
     return 'TOTAL';
   }
 
-  // 3. Unification CREDIT AGRICOLE (inclut les "CAISSE LOCALE CREDIT AGRICOLE", etc.)
-  if (n.includes('CREDIT AGRICOLE') || n.includes('CRÉDIT AGRICOLE')) {
+  // 3. Unification CREDIT AGRICOLE
+  if (n.includes('CREDIT AGRICOLE')) {
     return 'CREDIT AGRICOLE';
   }
 
   // 4. Unification HERMES
-  if (n === 'HERMES INTERNATIONAL' || n === 'HERMES INTL' || n === 'HERMÈS INTERNATIONAL') {
+  if (n.includes('HERMES')) {
     return 'HERMES';
   }
 
   // 5. Unification AIRBUS
-  if (n === 'AIRBUS SE') {
+  if (n.includes('AIRBUS')) {
     return 'AIRBUS';
   }
 
-  return n;
+  // Si on n'a rien remplacé, on renvoie le nom d'origine (mais en nettoyant juste les parasites)
+  return name.replace(/\[DONNÉES NON PUBLIÉES\]/gi, '')
+             .replace(/\[DONNEES NON PUBLIEES\]/gi, '')
+             .replace(/[\n\r]/g, ' ')
+             .replace(/\s+/g, ' ')
+             .trim()
+             .toUpperCase();
 }
 
 // Extrait la valeur numérique des objets imbriqués
@@ -188,7 +188,6 @@ async function processData() {
       traverse(decla);
 
       for (const node of allNodes) {
-        // APPLICATION DE LA FONCTION DE NETTOYAGE ICI
         const rawNom = getString(node.nomSociete || node.nom_societe || node.denomination);
         const nomSociete = standardizeCompanyName(rawNom);
         
