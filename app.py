@@ -40,8 +40,12 @@ def check_if_listed(company_name):
     """Vérifie si une entreprise est cotée en bourse via mots-clés + Yahoo Finance API."""
     name_upper = str(company_name).upper().strip()
     
-    # Exclusion des faux positifs (Sociétés Civiles Immobilières et statuts juridiques)
-    mots_exclus = ["SCI", "S.C.I.", "S.C.I", "SCPI", "SARL", "SAS", "EURL", "SOCIETE CIVILE IMMOBILIERE"]
+    # Exclusion des faux positifs : structures foncières, immobilières et statuts juridiques non cotés
+    mots_exclus = [
+        "SCI", "S.C.I.", "S.C.I", "SCPI", "SARL", "SAS", "EURL", 
+        "SOCIETE CIVILE IMMOBILIERE", "GFR", "GFA", "GFV", "GFF", 
+        "GROUPEMENT FONCIER", "GROUPEMENT FONCIER RURAL", "GROUPEMENT FONCIER AGRICOLE"
+    ]
     words = name_upper.split()
     
     if any(mot in words for mot in mots_exclus) or name_upper in mots_exclus:
@@ -252,7 +256,6 @@ else:
     final_table = comp_summary.set_index('entreprise').join(pivot_pct).reset_index()
     final_table = final_table.sort_values(by='montant_cumule', ascending=False)
     
-    # Formatage du montant cumulé après tri
     final_table['montant_cumule'] = final_table['montant_cumule'].apply(fmt_eur)
 
     col_config = {
