@@ -3,7 +3,21 @@ const https = require('https');
 const { XMLParser } = require('fast-xml-parser');
 
 const XML_URL = 'https://www.hatvp.fr/livraison/merge/declarations.xml';
+const DEPUTES_API_URL = 'https://www.nosdeputes.fr/deputes/json';
 const OUTPUT_FILE = 'hatvp_data.json';
+
+function fetchJSON(url) {
+  return new Promise((resolve, reject) => {
+    https.get(url, { headers: { 'User-Agent': 'Mozilla/5.0' } }, (res) => {
+      let data = '';
+      res.on('data', chunk => data += chunk);
+      res.on('end', () => {
+        try { resolve(JSON.parse(data)); } 
+        catch (e) { reject(e); }
+      });
+    }).on('error', err => reject(err));
+  });
+}
 
 function downloadXML(url) {
   return new Promise((resolve, reject) => {
@@ -16,7 +30,6 @@ function downloadXML(url) {
   });
 }
 
-// Extrait la valeur d'évaluation sans lire l'année
 function parseEvaluationMontant(item) {
   let rawVal = item.evaluation;
 
@@ -36,17 +49,19 @@ function parseEvaluationMontant(item) {
   return matches ? parseFloat(matches[0]) : 0;
 }
 
-function isDepute(decla) {
+// Filtre strict pour parlementaires (Députés / Sénateurs)
+function isParlementaire(decla) {
   const jsonStr = JSON.stringify(decla).toLowerCase();
   return (
     jsonStr.includes('dép') ||
     jsonStr.includes('depu') ||
+    jsonStr.includes('sénat') ||
+    jsonStr.includes('senat') ||
     jsonStr.includes('assemblée nationale') ||
     jsonStr.includes('assemblee nationale')
   );
 }
 
-// Extrait les participations en cherchant dans toute la structure de la déclaration
 function extractParticipations(node) {
   let list = [];
   if (!node) return list;
@@ -54,7 +69,6 @@ function extractParticipations(node) {
   if (Array.isArray(node)) {
     for (const item of node) list.push(...extractParticipations(item));
   } else if (typeof node === 'object') {
-    // Si c'est un bloc entreprise/société
     const nom = node.nomSociete || node.nom_societe;
     if (nom && typeof nom === 'string' && nom.trim().length > 0) {
       list.push(node);
@@ -86,8 +100,37 @@ function getEluNom(decla) {
   return 'Inconnu';
 }
 
+// Normalise les chaînes pour la comparaison de noms (ex: DAMIEN ABAD)
+function normalizeName(str) {
+  return str
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toUpperCase()
+    .trim();
+}
+
 async function processData() {
   try {
+    // 1. Récupération du référentiel des députés (API OpenData NosDéputés / AN)
+    console.log('Chargement des données API Députés...');
+    const deputesMap = new Map();
+    try {
+      const deputesData = await fetchJSON(DEPUTES_API_URL);
+      if (deputesData?.deputes) {
+        for (const entry of deputesData.deputes) {
+          const d = entry.depute;
+          const keyName = normalizeName(d.nom);
+          deputesMap.set(keyName, {
+            parti: d.parti_rattachement || d.groupe_sigle || 'Non renseigné',
+            mandat: 'Député'
+          });
+        }
+      }
+    } catch (e) {
+      console.warn('Impossible de joindre l\'API députés, fallback sur les données XML.', e.message);
+    }
+
+    // 2. Téléchargement du XML HATVP
     const xmlText = await downloadXML(XML_URL);
     console.log('Parsing XML...');
 
@@ -105,25 +148,32 @@ async function processData() {
       declarations = [declarations];
     }
 
-    console.log(`Nombre total de déclarations : ${declarations.length}`);
-
     const records = [];
-    let countDeputes = 0;
+    let countParlementaires = 0;
 
     for (const decla of declarations) {
-      if (!isDepute(decla)) continue;
-      countDeputes++;
+      if (!isParlementaire(decla)) continue;
 
       const eluNom = getEluNom(decla);
+      if (!eluNom || eluNom === 'Inconnu') continue;
 
-      let parti = String(
-        decla?.qualiteMandat?.organe?.codeOrgane ||
-        decla?.qualiteMandat?.labelOrgane || 
-        decla?.qualiteMandat?.organe?.label || 
-        'Non renseigné'
-      ).trim();
+      countParlementaires++;
 
-      // On extrait tous les items "société" de la déclaration
+      // Recherche du parti via l'API en priorité
+      const normName = normalizeName(eluNom);
+      const apiInfo = deputesMap.get(normName);
+
+      let parti = apiInfo?.parti;
+      
+      if (!parti || parti === 'Non renseigné') {
+        parti = String(
+          decla?.qualiteMandat?.organe?.codeOrgane ||
+          decla?.qualiteMandat?.labelOrgane || 
+          decla?.qualiteMandat?.organe?.label || 
+          'Non renseigné'
+        ).trim();
+      }
+
       const itemsFound = extractParticipations(decla);
 
       for (const item of itemsFound) {
@@ -141,7 +191,7 @@ async function processData() {
       }
     }
 
-    console.log(`Députés traités : ${countDeputes}`);
+    console.log(`Parlementaires identifiés : ${countParlementaires}`);
     console.log(`Participations financières extraites : ${records.length}`);
 
     if (records.length === 0) {
@@ -149,7 +199,7 @@ async function processData() {
     }
 
     fs.writeFileSync(OUTPUT_FILE, JSON.stringify(records, null, 2), 'utf-8');
-    console.log(`Fichier ${OUTPUT_FILE} généré avec succès (${records.length} entrées).`);
+    console.log(`Fichier ${OUTPUT_FILE} généré avec succès.`);
 
   } catch (error) {
     console.error('Erreur :', error.message);
