@@ -1,16 +1,20 @@
 name: Generate HATVP JSON
 
 on:
-  workflow_dispatch: # Permet de lancer manuellement depuis l'onglet "Actions" de GitHub
+  workflow_dispatch:
+
+# Autorise explicitement l'écriture dans le dépôt
+permissions:
+  contents: write
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           node-version: 18
 
@@ -22,8 +26,8 @@ jobs:
 
       - name: Commit and push JSON
         run: |
-          git config --local user.email "action@github.com"
-          git config --local user.name "GitHub Action"
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
           git add hatvp_data.json
           git commit -m "Update hatvp_data.json" || exit 0
           git push
