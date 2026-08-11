@@ -15,13 +15,43 @@ st.set_page_config(
 st.title("📊 Participations Financières des Parlementaires & Impacts Boursiers")
 st.caption("Analyse des participations financières déclarées par les députés et sénateurs à la HATVP et leur exposition aux marchés boursiers.")
 
+# --- EFFECTIFS DES GROUPES PARLEMENTAIRES (ASSEMBLÉE NATIONALE) ---
+GROUPS_EFFECTIFS = {
+    'RN': 122,
+    'EPR': 90,
+    'RE': 90,
+    'REN': 90,
+    'LFI': 71,
+    'SOC': 68,
+    'PS': 68,
+    'DR': 48,
+    'LR': 48,
+    'ECO': 38,
+    'EELV': 38,
+    'DEM': 37,
+    'MODEM': 37,
+    'HOR': 35,
+    'LIOT': 22,
+    'GDR': 17,
+    'UDR': 17,
+    'NI': 11
+}
+
 # --- FONCTION DE FORMATAGE MONÉTAIRE ---
 def fmt_eur(val):
-    """Formate un nombre en euros avec un espace comme séparateur de milliers (ex: 2 917 742 €)."""
+    """Formate un nombre en euros avec un espace comme séparateur de milliers."""
     try:
         return f"{float(val):,.0f} €".replace(",", " ")
     except (ValueError, TypeError):
         return "0 €"
+
+def get_group_size(parti_str):
+    """Retourne l'effectif officiel du groupe à l'Assemblée selon le parti/sigle."""
+    p = str(parti_str).upper().strip()
+    for sigle, size in GROUPS_EFFECTIFS.items():
+        if sigle in p:
+            return size
+    return None
 
 # --- MAPPING ET RECONNAISSANCE BOURSIÈRE ---
 
@@ -40,7 +70,6 @@ def check_if_listed(company_name):
     """Vérifie si une entreprise est cotée en bourse via mots-clés + Yahoo Finance API."""
     name_upper = str(company_name).upper().strip()
     
-    # Exclusion des faux positifs : structures foncières, immobilières et statuts juridiques non cotés
     mots_exclus = [
         "SCI", "S.C.I.", "S.C.I", "SCPI", "SARL", "SAS", "EURL", 
         "SOCIETE CIVILE IMMOBILIERE", "GFR", "GFA", "GFV", "GFF", 
@@ -51,12 +80,10 @@ def check_if_listed(company_name):
     if any(mot in words for mot in mots_exclus) or name_upper in mots_exclus:
         return False
     
-    # 1. Liste Euronext / CAC40
     for kw in KNOWN_LISTED:
         if kw in name_upper:
             return True
             
-    # 2. Yahoo Finance API
     try:
         if len(name_upper) <= 10:
             ticker = yf.Ticker(name_upper)
@@ -191,8 +218,8 @@ st.dataframe(
     column_config={
         "bloc_politique": st.column_config.TextColumn("Bloc Politique"),
         "montant_total": st.column_config.TextColumn("Montant Total (€)"),
-        "pourcentage": st.column_config.NumberColumn("Part (%)", format="%.2f %%"),
-        "nb_elus": st.column_config.NumberColumn("Nombre d'élus", format="%d")
+        "pourcentage": st.column_config.NumberColumn("Part des Investissements (%)", format="%.2f %%"),
+        "nb_elus": st.column_config.NumberColumn("Nombre d'Élus", format="%d")
     },
     hide_index=True,
     use_container_width=True
@@ -200,7 +227,7 @@ st.dataframe(
 
 st.markdown("---")
 
-# --- SECTION 2 : INVESTISSEMENT PAR PARTI POLITIQUE ---
+# --- SECTION 2 : INVESTISSEMENT PAR PARTI POLITIQUE (ENRICHI AVEC EFFECTIFS AN) ---
 st.subheader("🏛️ Répartition Globale par Parti Politique")
 
 parti_summary = filtered_df.groupby('parti').agg(
@@ -213,16 +240,27 @@ if total_invested > 0:
 else:
     parti_summary['pourcentage'] = 0
 
+# Ajout des effectifs totaux de l'Assemblée
+parti_summary['total_groupe'] = parti_summary['parti'].apply(get_group_size)
+
+# Calcul du taux d'élus investis dans le groupe (si effectif trouvé)
+parti_summary['pct_groupe_investi'] = parti_summary.apply(
+    lambda r: (r['nb_elus'] / r['total_groupe'] * 100) if pd.notnull(r['total_groupe']) and r['total_groupe'] > 0 else None,
+    axis=1
+)
+
 parti_summary = parti_summary.sort_values(by='montant_total', ascending=False)
 parti_summary['montant_total'] = parti_summary['montant_total'].apply(fmt_eur)
 
 st.dataframe(
     parti_summary,
     column_config={
-        "parti": st.column_config.TextColumn("Parti Politique"),
+        "parti": st.column_config.TextColumn("Parti / Groupe Politique"),
         "montant_total": st.column_config.TextColumn("Montant Total (€)"),
-        "pourcentage": st.column_config.NumberColumn("Part (%)", format="%.2f %%"),
-        "nb_elus": st.column_config.NumberColumn("Nombre d'Élus", format="%d")
+        "pourcentage": st.column_config.NumberColumn("Part du Portefeuille Total (%)", format="%.2f %%"),
+        "nb_elus": st.column_config.NumberColumn("Élus Investis", format="%d"),
+        "total_groupe": st.column_config.NumberColumn("Total Députés (AN)", format="%d"),
+        "pct_groupe_investi": st.column_config.NumberColumn("% du Groupe Investi", format="%.1f %%")
     },
     hide_index=True,
     use_container_width=True
