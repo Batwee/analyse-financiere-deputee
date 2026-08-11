@@ -30,16 +30,18 @@ function downloadXML(url) {
   });
 }
 
+// Extraction robuste de la valeur de la participation
 function parseEvaluationMontant(item) {
   let rawVal = item.evaluation;
 
   if (rawVal === undefined || rawVal === null || rawVal === '') {
-    rawVal = item.montant || item.valeur || '0';
+    rawVal = item.montant || item.valeur || item.valeurParticipation || '0';
   }
 
   if (typeof rawVal === 'object') {
     if (rawVal.evaluation) rawVal = rawVal.evaluation;
     else if (rawVal.montant) rawVal = rawVal.montant;
+    else if (rawVal.valeur) rawVal = rawVal.valeur;
     else rawVal = JSON.stringify(rawVal);
   }
 
@@ -61,7 +63,7 @@ function isParlementaire(decla) {
   );
 }
 
-// Parcours restreint à la section des participations financières uniquement
+// Parcours récursif pour trouver tous les nœuds de sociétés dans la section financière
 function extractParticipationsFinancieres(node) {
   let list = [];
   if (!node) return list;
@@ -69,13 +71,14 @@ function extractParticipationsFinancieres(node) {
   if (Array.isArray(node)) {
     for (const item of node) list.push(...extractParticipationsFinancieres(item));
   } else if (typeof node === 'object') {
-    const nom = node.nomSociete || node.nom_societe;
+    const nom = node.nomSociete || node.nom_societe || node.denomination;
     if (nom && typeof nom === 'string' && nom.trim().length > 0) {
       list.push(node);
-    }
-    for (const key of Object.keys(node)) {
-      if (typeof node[key] === 'object') {
-        list.push(...extractParticipationsFinancieres(node[key]));
+    } else {
+      for (const key of Object.keys(node)) {
+        if (typeof node[key] === 'object') {
+          list.push(...extractParticipationsFinancieres(node[key]));
+        }
       }
     }
   }
@@ -169,22 +172,17 @@ async function processData() {
         ).trim();
       }
 
-      // Extraction STRICTE du bloc des participations financières
+      // Récupération de la section des participations financières
       const sectionFinanciere = decla?.participationsFinancieresDto;
-      if (!sectionFinanciere || sectionFinanciere.neant === 'true' || sectionFinanciere.neant === true) {
-        continue;
-      }
+      if (!sectionFinanciere) continue;
 
       const itemsFound = extractParticipationsFinancieres(sectionFinanciere);
 
       for (const item of itemsFound) {
-        const nomSociete = String(item.nomSociete || item.nom_societe || '').trim().toUpperCase();
+        const nomSociete = String(item.nomSociete || item.nom_societe || item.denomination || '').trim().toUpperCase();
         if (!nomSociete) continue;
 
         const montant = parseEvaluationMontant(item);
-
-        // Exclusion des montants nuls pour écarter les mandats non financiers
-        if (montant <= 0) continue;
 
         // Déduplication (Même élu + Même entreprise + Même montant)
         const uniqueKey = `${eluNom}-${nomSociete}-${montant}`;
@@ -201,7 +199,7 @@ async function processData() {
     }
 
     console.log(`Parlementaires identifiés : ${countParlementaires}`);
-    console.log(`Participations financières valides (> 0 €) : ${records.length}`);
+    console.log(`Participations financières extraites : ${records.length}`);
 
     if (records.length === 0) {
       throw new Error("Aucune participation n'a été extraite.");
