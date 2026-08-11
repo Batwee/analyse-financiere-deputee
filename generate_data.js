@@ -30,16 +30,20 @@ function downloadXML(url) {
   });
 }
 
-// Nettoie et extrait le montant de la participation
+// Extraction robuste du montant financier HATVP
 function parseEvaluationMontant(item) {
   let rawVal = item.evaluation;
+
   if (rawVal === undefined || rawVal === null || rawVal === '') {
-    rawVal = item.montant || item.valeur || item.valeurParticipation || '0';
+    rawVal = item.montant || item.valeur || item.valeurParticipation;
   }
 
-  if (typeof rawVal === 'object') {
-    rawVal = rawVal.evaluation || rawVal.montant || rawVal.valeur || JSON.stringify(rawVal);
+  // Gestion des objets imbriqués (ex: <evaluation><montant>1000</montant></evaluation>)
+  if (typeof rawVal === 'object' && rawVal !== null) {
+    rawVal = rawVal.montant || rawVal.valeur || rawVal.evaluation || JSON.stringify(rawVal);
   }
+
+  if (rawVal === undefined || rawVal === null) return 0;
 
   const valStr = String(rawVal).trim();
   const cleanVal = valStr.replace(/\s+/g, '');
@@ -59,29 +63,32 @@ function isParlementaire(decla) {
   );
 }
 
-// Détection souple des entreprises dans n'importe quelle sous-structure
-function findParticipationsInTree(obj) {
-  let results = [];
-  if (!obj) return results;
+// Parcours ciblé EXCLUSIVEMENT sur la section participations financières
+function getFinancialItems(partSection) {
+  let items = [];
+  if (!partSection) return items;
 
-  if (Array.isArray(obj)) {
-    for (const child of obj) {
-      results.push(...findParticipationsInTree(child));
-    }
-  } else if (typeof obj === 'object') {
-    // Si l'objet possède un nom de société ou d'organisme
-    const nom = obj.nomSociete || obj.nom_societe || obj.denomination || obj.nomOrganisme;
-    if (nom && typeof nom === 'string' && nom.trim().length > 0) {
-      results.push(obj);
+  // On cherche le sous-noeud items/itemsDto
+  const itemsContainer = partSection.items || partSection.itemsDto || partSection;
+
+  const rawList = Array.isArray(itemsContainer) ? itemsContainer : [itemsContainer];
+
+  for (const entry of rawList) {
+    if (!entry || typeof entry !== 'object') continue;
+
+    // Si entry contient un sous-tableau d'items
+    if (entry.items) {
+      const subItems = Array.isArray(entry.items) ? entry.items : [entry.items];
+      items.push(...subItems);
+    } else if (entry.item) {
+      const subItems = Array.isArray(entry.item) ? entry.item : [entry.item];
+      items.push(...subItems);
     } else {
-      for (const key of Object.keys(obj)) {
-        if (typeof obj[key] === 'object') {
-          results.push(...findParticipationsInTree(obj[key]));
-        }
-      }
+      items.push(entry);
     }
   }
-  return results;
+
+  return items;
 }
 
 function getEluNom(decla) {
@@ -126,7 +133,7 @@ async function processData() {
         }
       }
     } catch (e) {
-      console.warn('API députés indisponible, bascule sur les données du XML.');
+      console.warn('API députés indisponible, bascule sur le XML.');
     }
 
     const xmlText = await downloadXML(XML_URL);
@@ -135,8 +142,7 @@ async function processData() {
     const parser = new XMLParser({
       ignoreAttributes: false,
       parseNodeValue: false,
-      // Forcer toutes ces balises récurrentes à être des tableaux JS
-      isArray: (name) => ['declaration', 'items', 'item', 'participationsFinancieresDto'].includes(name)
+      isArray: (name) => ['declaration', 'items', 'item'].includes(name)
     });
 
     const parsedObj = parser.parse(xmlText);
@@ -172,23 +178,27 @@ async function processData() {
         ).trim();
       }
 
-      // Recherche prioritaire dans la propriété participationsFinancieresDto
-      let partSection = decla?.participationsFinancieresDto;
-      
-      // Fallback : recherche sur l'ensemble de la déclaration si non trouvé sous la clé exacte
-      if (!partSection) {
-        partSection = decla;
+      // 1. ISOLATION STRICTE : Uniquement la section participationsFinancieresDto
+      const partSection = decla?.participationsFinancieresDto;
+      if (!partSection || partSection.neant === 'true' || partSection.neant === true) {
+        continue;
       }
 
-      const itemsFound = findParticipationsInTree(partSection);
+      const itemsFound = getFinancialItems(partSection);
 
       for (const item of itemsFound) {
-        const nomSociete = String(item.nomSociete || item.nom_societe || item.denomination || item.nomOrganisme || '').trim().toUpperCase();
+        const nomSociete = String(
+          item.nomSociete || item.nom_societe || item.denomination || ''
+        ).trim().toUpperCase();
+
         if (!nomSociete) continue;
 
         const montant = parseEvaluationMontant(item);
 
-        // Déduplication (Élu + Société + Montant)
+        // 2. FILTRE STRICT : On élimine impérativement tout montant égal à 0
+        if (montant <= 0) continue;
+
+        // Déduplication
         const uniqueKey = `${eluNom}-${nomSociete}-${montant}`;
         if (setUnique.has(uniqueKey)) continue;
         setUnique.add(uniqueKey);
@@ -203,7 +213,7 @@ async function processData() {
     }
 
     console.log(`Parlementaires identifiés : ${countParlementaires}`);
-    console.log(`Participations financières extraites : ${records.length}`);
+    console.log(`Participations financières strictement positives (> 0 €) : ${records.length}`);
 
     if (records.length === 0) {
       throw new Error("Aucune participation n'a été extraite.");
