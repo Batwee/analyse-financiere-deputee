@@ -16,44 +16,41 @@ function downloadXML(url) {
   });
 }
 
-// Extrait la vraie valeur financière (€) sans capturer l'année
+// Extraction robuste du montant/évaluation en évitant de lire une année
 function parseEvaluationMontant(item) {
-  // En priorité la valeur d'évaluation des parts/actions
+  // En priorité la valeur d'évaluation des parts/actions (champ 'evaluation')
   let rawVal = item.evaluation;
 
-  // Si absent, cherche la rémunération/montant
-  if (rawVal === undefined || rawVal === null) {
+  if (rawVal === undefined || rawVal === null || rawVal === '') {
     rawVal = item.montant || item.valeur || '0';
   }
 
-  // Si c'est un objet (ex: ventilation par année), on cherche la propriété 'montant' ou 'evaluation'
+  // Si 'evaluation' ou 'montant' est un objet complexe
   if (typeof rawVal === 'object') {
-    if (rawVal.montant) rawVal = rawVal.montant;
-    else if (rawVal.evaluation) rawVal = rawVal.evaluation;
+    if (rawVal.evaluation) rawVal = rawVal.evaluation;
+    else if (rawVal.montant) rawVal = rawVal.montant;
     else rawVal = JSON.stringify(rawVal);
   }
 
   const valStr = String(rawVal).trim();
-  // Nettoie les espaces et extrait la valeur numérique
+  // Suppression des espaces insecables et normaux
   const cleanVal = valStr.replace(/\s+/g, '');
   const matches = cleanVal.match(/\d+/);
   return matches ? parseFloat(matches[0]) : 0;
 }
 
-// Vérification stricte du mandat de député
+// Filtre député souple et fiable
 function isDepute(decla) {
-  const qualiteObj = decla?.qualiteMandat || {};
-  const qualiteStr = JSON.stringify(qualiteObj).toLowerCase();
-  const titre = String(decla?.qualiteDeclarantForAffichage || '').toLowerCase();
-
+  const jsonStr = JSON.stringify(decla).toLowerCase();
   return (
-    titre.includes('député') ||
-    titre.includes('depute') ||
-    qualiteStr.includes('depute') ||
-    qualiteStr.includes('député')
+    jsonStr.includes('dép') ||
+    jsonStr.includes('depu') ||
+    jsonStr.includes('assemblée nationale') ||
+    jsonStr.includes('assemblee nationale')
   );
 }
 
+// Extrait récursivement les éléments ayant un nomSociete
 function extractItems(node) {
   let list = [];
   if (!node) return list;
@@ -69,6 +66,26 @@ function extractItems(node) {
     }
   }
   return list;
+}
+
+// Extrait le nom complet depuis le nœud declarant
+function getEluNom(decla) {
+  const declarant = decla?.declarant || {};
+  const prenom = String(declarant.prenom || declarant.prenomDeclarant || '').trim();
+  const nom = String(declarant.nom || declarant.nomDeclarant || '').trim();
+  
+  if (prenom || nom) {
+    return `${prenom} ${nom}`.trim();
+  }
+
+  // Fallback si la structure declarant est différente
+  const generalNom = String(decla?.general?.declarant?.nom || '').trim();
+  const generalPrenom = String(decla?.general?.declarant?.prenom || '').trim();
+  if (generalNom || generalPrenom) {
+    return `${generalPrenom} ${generalNom}`.trim();
+  }
+
+  return 'Inconnu';
 }
 
 async function processData() {
@@ -99,23 +116,16 @@ async function processData() {
       if (!isDepute(decla)) continue;
       countDeputes++;
 
-      // Récupération stricte du nom du député
-      const prenom = String(decla?.declarant?.prenom || '').trim();
-      const nom = String(decla?.declarant?.nom || '').trim();
-      const eluNom = `${prenom} ${nom}`.trim();
+      const eluNom = getEluNom(decla);
 
-      if (!eluNom || eluNom === 'Inconnu') continue;
+      let parti = String(
+        decla?.qualiteMandat?.organe?.codeOrgane ||
+        decla?.qualiteMandat?.labelOrgane || 
+        decla?.qualiteMandat?.organe?.label || 
+        'Non renseigné'
+      ).trim();
 
-      let parti = String(decla?.qualiteMandat?.organe?.codeOrgane || '').trim();
-      if (!parti) {
-        parti = String(
-          decla?.qualiteMandat?.labelOrgane || 
-          decla?.qualiteMandat?.organe?.label || 
-          'Non renseigné'
-        ).trim();
-      }
-
-      // Extraction STRICTE des participations financières en capital/actions
+      // Isolation explicite de la section participations financieres
       const partSection = decla?.participationsFinancieresDto;
       if (!partSection || partSection.neant === 'true' || partSection.neant === true) {
         continue;
@@ -139,14 +149,14 @@ async function processData() {
     }
 
     console.log(`Députés traités : ${countDeputes}`);
-    console.log(`Participations financières réelles extraites : ${records.length}`);
+    console.log(`Participations financières extraites : ${records.length}`);
 
     if (records.length === 0) {
       throw new Error("Aucune participation n'a été extraite.");
     }
 
     fs.writeFileSync(OUTPUT_FILE, JSON.stringify(records, null, 2), 'utf-8');
-    console.log(`Fichier ${OUTPUT_FILE} généré avec succès.`);
+    console.log(`Fichier ${OUTPUT_FILE} généré avec succès (${records.length} entrées).`);
 
   } catch (error) {
     console.error('Erreur :', error.message);
