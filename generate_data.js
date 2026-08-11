@@ -21,7 +21,7 @@ function fetchJSON(url) {
 
 function downloadXML(url) {
   return new Promise((resolve, reject) => {
-    console.log('Téléchargement du fichier XML HATVP...');
+    console.log('Téléchargement du XML HATVP...');
     https.get(url, { headers: { 'User-Agent': 'Mozilla/5.0' } }, (res) => {
       let data = '';
       res.on('data', chunk => data += chunk);
@@ -49,7 +49,6 @@ function parseEvaluationMontant(item) {
   return matches ? parseFloat(matches[0]) : 0;
 }
 
-// Filtre strict pour parlementaires (Députés / Sénateurs)
 function isParlementaire(decla) {
   const jsonStr = JSON.stringify(decla).toLowerCase();
   return (
@@ -62,12 +61,13 @@ function isParlementaire(decla) {
   );
 }
 
-function extractParticipations(node) {
+// Parcours restreint à la section des participations financières uniquement
+function extractParticipationsFinancieres(node) {
   let list = [];
   if (!node) return list;
 
   if (Array.isArray(node)) {
-    for (const item of node) list.push(...extractParticipations(item));
+    for (const item of node) list.push(...extractParticipationsFinancieres(item));
   } else if (typeof node === 'object') {
     const nom = node.nomSociete || node.nom_societe;
     if (nom && typeof nom === 'string' && nom.trim().length > 0) {
@@ -75,7 +75,7 @@ function extractParticipations(node) {
     }
     for (const key of Object.keys(node)) {
       if (typeof node[key] === 'object') {
-        list.push(...extractParticipations(node[key]));
+        list.push(...extractParticipationsFinancieres(node[key]));
       }
     }
   }
@@ -100,7 +100,6 @@ function getEluNom(decla) {
   return 'Inconnu';
 }
 
-// Normalise les chaînes pour la comparaison de noms (ex: DAMIEN ABAD)
 function normalizeName(str) {
   return str
     .normalize('NFD')
@@ -111,7 +110,6 @@ function normalizeName(str) {
 
 async function processData() {
   try {
-    // 1. Récupération du référentiel des députés (API OpenData NosDéputés / AN)
     console.log('Chargement des données API Députés...');
     const deputesMap = new Map();
     try {
@@ -121,18 +119,16 @@ async function processData() {
           const d = entry.depute;
           const keyName = normalizeName(d.nom);
           deputesMap.set(keyName, {
-            parti: d.parti_rattachement || d.groupe_sigle || 'Non renseigné',
-            mandat: 'Député'
+            parti: d.parti_rattachement || d.groupe_sigle || 'Non renseigné'
           });
         }
       }
     } catch (e) {
-      console.warn('Impossible de joindre l\'API députés, fallback sur les données XML.', e.message);
+      console.warn('API députés indisponible, bascule sur les données du XML.');
     }
 
-    // 2. Téléchargement du XML HATVP
     const xmlText = await downloadXML(XML_URL);
-    console.log('Parsing XML...');
+    console.log('Parsing du document XML...');
 
     const parser = new XMLParser({
       ignoreAttributes: false,
@@ -149,6 +145,7 @@ async function processData() {
     }
 
     const records = [];
+    const setUnique = new Set();
     let countParlementaires = 0;
 
     for (const decla of declarations) {
@@ -159,12 +156,10 @@ async function processData() {
 
       countParlementaires++;
 
-      // Recherche du parti via l'API en priorité
       const normName = normalizeName(eluNom);
       const apiInfo = deputesMap.get(normName);
 
       let parti = apiInfo?.parti;
-      
       if (!parti || parti === 'Non renseigné') {
         parti = String(
           decla?.qualiteMandat?.organe?.codeOrgane ||
@@ -174,13 +169,27 @@ async function processData() {
         ).trim();
       }
 
-      const itemsFound = extractParticipations(decla);
+      // Extraction STRICTE du bloc des participations financières
+      const sectionFinanciere = decla?.participationsFinancieresDto;
+      if (!sectionFinanciere || sectionFinanciere.neant === 'true' || sectionFinanciere.neant === true) {
+        continue;
+      }
+
+      const itemsFound = extractParticipationsFinancieres(sectionFinanciere);
 
       for (const item of itemsFound) {
         const nomSociete = String(item.nomSociete || item.nom_societe || '').trim().toUpperCase();
         if (!nomSociete) continue;
 
         const montant = parseEvaluationMontant(item);
+
+        // Exclusion des montants nuls pour écarter les mandats non financiers
+        if (montant <= 0) continue;
+
+        // Déduplication (Même élu + Même entreprise + Même montant)
+        const uniqueKey = `${eluNom}-${nomSociete}-${montant}`;
+        if (setUnique.has(uniqueKey)) continue;
+        setUnique.add(uniqueKey);
 
         records.push({
           entreprise: nomSociete,
@@ -192,7 +201,7 @@ async function processData() {
     }
 
     console.log(`Parlementaires identifiés : ${countParlementaires}`);
-    console.log(`Participations financières extraites : ${records.length}`);
+    console.log(`Participations financières valides (> 0 €) : ${records.length}`);
 
     if (records.length === 0) {
       throw new Error("Aucune participation n'a été extraite.");
