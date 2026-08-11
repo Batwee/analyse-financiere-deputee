@@ -5,7 +5,6 @@ import os
 
 DATA_URL = "https://raw.githubusercontent.com/Batwee/analyse-financiere-deputee/refs/heads/main/hatvp_data.json"
 
-# Configuration de la page Streamlit
 st.set_page_config(
     page_title="HATVP — Participations Financières & Bourse",
     page_icon="📈",
@@ -37,7 +36,26 @@ GROUPS_EFFECTIFS = {
     'NI': 11
 }
 
-# --- FONCTION DE FORMATAGE MONÉTAIRE ---
+# --- LISTE EXACTE DES ENTREPRISES COTÉES HARMONISÉES (MAJUSCULES) ---
+KNOWN_LISTED = [
+    "TOTAL", "L'OREAL", "UNIBAIL-RODAMCO-WESTFIELD", "BOUYGUES", "AIR LIQUIDE", 
+    "SCHNEIDER ELECTRIC", "BNP PARIBAS", "HERMES", "SANOFI", "CREDIT AGRICOLE", 
+    "VALLOUREC", "SAFRAN", "AXA", "THALES", "LVMH", "DANONE", "ENGIE", "RENAULT", 
+    "SOPRA STERIA", "NANOBIOTIX", "AIRBUS", "STELLANTIS", "ORANGE", "AIR FRANCE-KLM", 
+    "EURAZEO", "VINCI", "SAINT-GOBAIN", "ALLIANZ", "FDJ", "VIVENDI", "ARCELORMITTAL", 
+    "VEOLIA", "GROUPE ADP", "PERNOD RICARD", "MICHELIN", "CHRISTIAN DIOR", 
+    "UNIVERSAL MUSIC GROUP", "MICROSOFT", "TRIGANO", "ASML", "JCDECAUX", "ALSTOM", 
+    "CARREFOUR", "KERING", "BIOMERIEUX", "FNAC DARTY", "CELLNEX TELECOM", "APPLE", 
+    "REMY COINTREAU", "STMICROELECTRONICS", "SOLVAY", "ARKEMA", "CONTINENTAL", 
+    "SOCIETE GENERALE", "NEOEN", "CAPGEMINI", "COSTCO", "NOVO NORDISK", "QUADIENT", 
+    "AMD", "TF1", "UBER", "EDF", "WORLDLINE", "PUMA", "SAMSUNG", "INTUITIVE SURGICAL", 
+    "RUBIS", "NOKIA", "GETLINK", "SERVICENOW", "SALESFORCE", "VISA", "ZSCALER", 
+    "PUBLICIS", "CARBIOS", "ESSILORLUXOTTICA", "ROBLOX", "SARTORIUS STEDIM BIOTECH", 
+    "SEA LIMITED", "WENDEL", "REDDIT", "IONQ", "DASSAULT SYSTEMES", "MERCEDES-BENZ GROUP", 
+    "DERICHEBOURG", "UBISOFT", "THYSSENKRUPP", "FORVIA", "GL EVENTS", "DONTNOD", 
+    "DEEZER", "EUROAPI", "TELEPERFORMANCE", "NICOX", "VANTIVA", "RALLYE", "CASINO", "ATARI"
+]
+
 def fmt_eur(val):
     """Formate un nombre en euros avec un espace comme séparateur de milliers."""
     try:
@@ -53,48 +71,6 @@ def get_group_size(parti_str):
             return size
     return None
 
-# --- MAPPING ET RECONNAISSANCE BOURSIÈRE ---
-
-KNOWN_LISTED = [
-    "TOTAL", "TOTALENERGIES", "LVMH", "SANOFI", "AIR LIQUIDE", "SCHNEIDER", "HERMES", 
-    "BNP", "PARIBAS", "VINCI", "AXA", "DANONE", "PERNOD", "SAFRAN", "ESSILOR", "L'OREAL", 
-    "LOREAL", "AIRBUS", "STELLANTIS", "ORANGE", "ENGIE", "CAPGEMINI", "KERING", "MICHELIN", 
-    "SAINT-GOBAIN", "CREDIT AGRICOLE", "SOCIETE GENERALE", "THALES", "PUBLICIS", "VEOLIA", 
-    "CARREFOUR", "LEGRAND", "BOUYGUES", "TELEPERFORMANCE", "UNIBAIL", "ALSTOM", "EDENRED", 
-    "EIFFAGE", "RENAULT", "DASSAULT", "VIVENDI", "GETLINK", "ARKEMA", "ACCOR", "SPIE", 
-    "APPLE", "MICROSOFT", "AMAZON", "TESLA", "ALPHABET", "NVIDIA", "NOVO NORDISK", "ASML", "SHELL"
-]
-
-@st.cache_data(ttl=86400)
-def check_if_listed(company_name):
-    """Vérifie si une entreprise est cotée en bourse via mots-clés + Yahoo Finance API."""
-    name_upper = str(company_name).upper().strip()
-    
-    mots_exclus = [
-        "SCI", "S.C.I.", "S.C.I", "SCPI", "SARL", "SAS", "EURL", 
-        "SOCIETE CIVILE IMMOBILIERE", "GFR", "GFA", "GFV", "GFF", 
-        "GROUPEMENT FONCIER", "GROUPEMENT FONCIER RURAL", "GROUPEMENT FONCIER AGRICOLE"
-    ]
-    words = name_upper.split()
-    
-    if any(mot in words for mot in mots_exclus) or name_upper in mots_exclus:
-        return False
-    
-    for kw in KNOWN_LISTED:
-        if kw in name_upper:
-            return True
-            
-    try:
-        if len(name_upper) <= 10:
-            ticker = yf.Ticker(name_upper)
-            hist = ticker.history(period="1d")
-            if not hist.empty:
-                return True
-    except Exception:
-        pass
-        
-    return False
-
 def classify_bloc(parti):
     """Classe les partis politiques dans les blocs Gauche, Droite / Majorité ou Autres."""
     p = str(parti).upper().strip()
@@ -108,6 +84,34 @@ def classify_bloc(parti):
         return '🔵 Droite & Majorité (RN, REN, UDR, DR, DEM, HOR...)'
     else:
         return '⚪ Autres / Indépendants (LIOT, NI...)'
+
+@st.cache_data(ttl=86400)
+def check_if_listed(company_name):
+    """Vérifie si l'entreprise figure parmi les sociétés cotées."""
+    name_upper = str(company_name).upper().strip()
+    
+    mots_exclus = [
+        "SCI", "S.C.I.", "S.C.I", "SCPI", "SARL", "SAS", "EURL", 
+        "SOCIETE CIVILE IMMOBILIERE", "GFR", "GFA", "GFV", "GFF", 
+        "GROUPEMENT FONCIER", "GROUPEMENT FONCIER RURAL", "GROUPEMENT FONCIER AGRICOLE"
+    ]
+    words = name_upper.split()
+    if any(mot in words for mot in mots_exclus) or name_upper in mots_exclus:
+        return False
+
+    if name_upper in KNOWN_LISTED:
+        return True
+
+    try:
+        if len(name_upper) <= 10:
+            ticker = yf.Ticker(name_upper)
+            hist = ticker.history(period="1d")
+            if not hist.empty:
+                return True
+    except Exception:
+        pass
+        
+    return False
 
 # --- CHARGEMENT DES DONNÉES ---
 @st.cache_data
@@ -227,7 +231,7 @@ st.dataframe(
 
 st.markdown("---")
 
-# --- SECTION 2 : INVESTISSEMENT PAR PARTI POLITIQUE (ENRICHI AVEC EFFECTIFS AN) ---
+# --- SECTION 2 : INVESTISSEMENT PAR PARTI POLITIQUE (AVEC EFFECTIFS AN) ---
 st.subheader("🏛️ Répartition Globale par Parti Politique")
 
 parti_summary = filtered_df.groupby('parti').agg(
@@ -240,10 +244,8 @@ if total_invested > 0:
 else:
     parti_summary['pourcentage'] = 0
 
-# Ajout des effectifs totaux de l'Assemblée
 parti_summary['total_groupe'] = parti_summary['parti'].apply(get_group_size)
 
-# Calcul du taux d'élus investis dans le groupe (si effectif trouvé)
 parti_summary['pct_groupe_investi'] = parti_summary.apply(
     lambda r: (r['nb_elus'] / r['total_groupe'] * 100) if pd.notnull(r['total_groupe']) and r['total_groupe'] > 0 else None,
     axis=1
