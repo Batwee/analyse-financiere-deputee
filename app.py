@@ -3,6 +3,7 @@ import pandas as pd
 import yfinance as yf
 import os
 
+# PENSE À VÉRIFIER CETTE URL : elle doit pointer vers ton fichier JSON brut sur GitHub
 DATA_URL = "https://raw.githubusercontent.com/Batwee/analyse-financiere-deputee/refs/heads/main/hatvp_data.json"
 
 # Configuration de la page
@@ -209,7 +210,6 @@ st.dataframe(
     use_container_width=True
 )
 
-# Affichage clair du montant global en Euros juste en dessous du tableau
 st.info(f"💡 **Montant total des investissements cumulés analysés :** `{total_invested:,.0f} €`".replace(",", " "))
 
 st.markdown("---")
