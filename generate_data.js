@@ -30,66 +30,77 @@ function downloadXML(url) {
   });
 }
 
-// Traverse récursivement un objet pour extraire la vraie valeur numérique
-function findNumericValue(node) {
-  if (node === null || node === undefined) return 0;
+// Extraction précise selon les schémas réels du XML HATVP
+function getMontantParticipation(item) {
+  if (!item) return 0;
 
-  if (typeof node === 'number') return node;
-
-  if (typeof node === 'string') {
-    const valStr = node.trim().replace(/\s+/g, '');
-    if (!valStr || valStr.toLowerCase() === 'neant' || valStr.toLowerCase() === 'false') return 0;
-    const matches = valStr.match(/\d+/);
-    return matches ? parseFloat(matches[0]) : 0;
+  // 1. Cas direct : champ evaluation / evaluationDto
+  let raw = item.evaluation;
+  if (raw === undefined || raw === null || raw === '') {
+    raw = item.valeur || item.valeurParticipation || item.montant;
   }
 
-  if (typeof node === 'object') {
-    // Clés HATVP à inspecter en priorité
-    const priorityKeys = ['evaluation', 'valeur', 'montant', 'capital', 'montantEuros'];
-    for (const k of priorityKeys) {
-      if (node[k] !== undefined) {
-        const res = findNumericValue(node[k]);
-        if (res > 0) return res;
+  // 2. Si c'est un objet (ex: <evaluation><montant><montant>15000</montant></montant></evaluation>)
+  if (typeof raw === 'object' && raw !== null) {
+    if (raw.montant !== undefined) raw = raw.montant;
+    if (typeof raw === 'object' && raw !== null && raw.montant !== undefined) raw = raw.montant;
+    if (typeof raw === 'object' && raw !== null && raw.valeur !== undefined) raw = raw.valeur;
+  }
+
+  // 3. Fallback : si l'évaluation est dans le tableau de rémunération/évaluation sous l'item
+  if ((raw === undefined || raw === null || raw === '' || raw === 0) && item.remuneration) {
+    const rem = item.remuneration;
+    if (rem.montant) {
+      const montants = Array.isArray(rem.montant) ? rem.montant : [rem.montant];
+      let total = 0;
+      for (const m of montants) {
+        const v = typeof m === 'object' ? (m.montant || m.valeur) : m;
+        const parsed = parseString(v);
+        if (parsed > total) total = parsed; // On prend la valeur/évaluation la plus récente
       }
-    }
-
-    // Parcourt tous les champs si non trouvé dans les clés prioritaires
-    for (const key of Object.keys(node)) {
-      if (key.toLowerCase().includes('nom') || key.toLowerCase().includes('societe')) continue;
-      const res = findNumericValue(node[key]);
-      if (res > 0) return res;
+      if (total > 0) return total;
     }
   }
 
-  return 0;
+  return parseString(raw);
+}
+
+function parseString(val) {
+  if (val === undefined || val === null) return 0;
+  if (typeof val === 'number') return val;
+  const str = String(val).replace(/\s+/g, '').replace(',', '.');
+  const match = str.match(/\d+(\.\d+)?/);
+  return match ? parseFloat(match[0]) : 0;
 }
 
 function isParlementaire(decla) {
-  const jsonStr = JSON.stringify(decla).toLowerCase();
+  const qualite = JSON.stringify(
+    decla?.qualiteMandat || decla?.general?.qualiteMandat || decla?.declarant?.qualiteMandat || ''
+  ).toLowerCase();
+
   return (
-    jsonStr.includes('dép') ||
-    jsonStr.includes('depu') ||
-    jsonStr.includes('sénat') ||
-    jsonStr.includes('senat') ||
-    jsonStr.includes('assemblée nationale') ||
-    jsonStr.includes('assemblee nationale')
+    qualite.includes('depute') ||
+    qualite.includes('dép') ||
+    qualite.includes('senat') ||
+    qualite.includes('sénat') ||
+    qualite.includes('assemblee') ||
+    qualite.includes('assemblée')
   );
 }
 
-// Extrait les sous-éléments représentant une société/entreprise
-function collectSocietes(node) {
+function extractItems(node) {
   let list = [];
   if (!node) return list;
 
   if (Array.isArray(node)) {
-    for (const child of node) list.push(...collectSocietes(child));
+    for (const child of node) list.push(...extractItems(child));
   } else if (typeof node === 'object') {
     const nom = node.nomSociete || node.nom_societe || node.denomination;
     if (nom && typeof nom === 'string' && nom.trim().length > 0) {
       list.push(node);
     } else {
       for (const k of Object.keys(node)) {
-        if (typeof node[k] === 'object') list.push(...collectSocietes(node[k]));
+        if (typeof node[k] === 'object') list.push(...extractItems(node[k]));
       }
     }
   }
@@ -97,16 +108,11 @@ function collectSocietes(node) {
 }
 
 function getEluNom(decla) {
-  const declarant = decla?.declarant || {};
+  const declarant = decla?.declarant || decla?.general?.declarant || {};
   const prenom = String(declarant.prenom || declarant.prenomDeclarant || '').trim();
   const nom = String(declarant.nom || declarant.nomDeclarant || '').trim();
 
   if (prenom || nom) return `${prenom} ${nom}`.trim();
-
-  const generalNom = String(decla?.general?.declarant?.nom || '').trim();
-  const generalPrenom = String(decla?.general?.declarant?.prenom || '').trim();
-  if (generalNom || generalPrenom) return `${generalPrenom} ${generalNom}`.trim();
-
   return 'Inconnu';
 }
 
@@ -134,7 +140,7 @@ async function processData() {
         }
       }
     } catch (e) {
-      console.warn('API députés indisponible, bascule sur le XML.');
+      console.warn('API députés indisponible, bascule sur les données XML.');
     }
 
     const xmlText = await downloadXML(XML_URL);
@@ -143,7 +149,7 @@ async function processData() {
     const parser = new XMLParser({
       ignoreAttributes: false,
       parseNodeValue: false,
-      isArray: (name) => ['declaration', 'items', 'item'].includes(name)
+      isArray: (name) => ['declaration', 'items', 'item', 'montant'].includes(name)
     });
 
     const parsedObj = parser.parse(xmlText);
@@ -177,11 +183,12 @@ async function processData() {
         ).trim();
       }
 
-      // Extraction uniquement depuis le bloc des participations financières
-      const partSection = decla?.participationsFinancieresDto;
-      if (!partSection || partSection.neant === 'true' || partSection.neant === true) continue;
+      const sectionFinanciere = decla?.participationsFinancieresDto;
+      if (!sectionFinanciere || sectionFinanciere.neant === 'true' || sectionFinanciere.neant === true) {
+        continue;
+      }
 
-      const itemsFound = collectSocietes(partSection);
+      const itemsFound = extractItems(sectionFinanciere);
 
       for (const item of itemsFound) {
         const nomSociete = String(
@@ -190,10 +197,9 @@ async function processData() {
 
         if (!nomSociete) continue;
 
-        // Traverse la sous-structure pour trouver le montant réel
-        const montant = findNumericValue(item);
+        const montant = getMontantParticipation(item);
 
-        // ON MASQUE STRICTEMENT LES MONTANTS NULS
+        // FILTRE STRICT : On ne garde que ce qui est strictement > 0 €
         if (montant <= 0) continue;
 
         const uniqueKey = `${eluNom}-${nomSociete}-${montant}`;
@@ -210,10 +216,10 @@ async function processData() {
     }
 
     console.log(`Parlementaires identifiés : ${countParlementaires}`);
-    console.log(`Participations financières réelles retenues (> 0 €) : ${records.length}`);
+    console.log(`Participations financières valides (> 0 €) : ${records.length}`);
 
     if (records.length === 0) {
-      throw new Error("Aucune participation n'a été extraite.");
+      throw new Error("Aucune participation > 0 € n'a été extraite.");
     }
 
     fs.writeFileSync(OUTPUT_FILE, JSON.stringify(records, null, 2), 'utf-8');
