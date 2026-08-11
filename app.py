@@ -15,9 +15,16 @@ st.set_page_config(
 st.title("📊 Participations Financières des Parlementaires & Impacts Boursiers")
 st.caption("Analyse des participations financières déclarées par les députés et sénateurs à la HATVP et leur exposition aux marchés boursiers.")
 
+# --- FONCTION DE FORMATAGE MONÉTAIRE ---
+def fmt_eur(val):
+    """Formate un nombre en euros avec un espace comme séparateur de milliers (ex: 2 917 742 €)."""
+    try:
+        return f"{float(val):,.0f} €".replace(",", " ")
+    except (ValueError, TypeError):
+        return "0 €"
+
 # --- MAPPING ET RECONNAISSANCE BOURSIÈRE ---
 
-# Liste des mots-clés d'entreprises cotées (Euronext, CAC40, SBF120, Nasdaq, etc.)
 KNOWN_LISTED = [
     "TOTAL", "TOTALENERGIES", "LVMH", "SANOFI", "AIR LIQUIDE", "SCHNEIDER", "HERMES", 
     "BNP", "PARIBAS", "VINCI", "AXA", "DANONE", "PERNOD", "SAFRAN", "ESSILOR", "L'OREAL", 
@@ -33,19 +40,19 @@ def check_if_listed(company_name):
     """Vérifie si une entreprise est cotée en bourse via mots-clés + Yahoo Finance API."""
     name_upper = str(company_name).upper().strip()
     
-    # 0. EXCLUSION DES FAUX POSITIFS (Statuts juridiques et sociétés immobilières)
+    # Exclusion des faux positifs (Sociétés Civiles Immobilières et statuts juridiques)
     mots_exclus = ["SCI", "S.C.I.", "S.C.I", "SCPI", "SARL", "SAS", "EURL", "SOCIETE CIVILE IMMOBILIERE"]
     words = name_upper.split()
     
     if any(mot in words for mot in mots_exclus) or name_upper in mots_exclus:
         return False
     
-    # 1. Vérification rapide par liste Euronext / CAC40
+    # 1. Liste Euronext / CAC40
     for kw in KNOWN_LISTED:
         if kw in name_upper:
             return True
             
-    # 2. Vérification dynamique via Yahoo Finance API (pour les tickers courts uniquement)
+    # 2. Yahoo Finance API
     try:
         if len(name_upper) <= 10:
             ticker = yf.Ticker(name_upper)
@@ -96,7 +103,6 @@ if df is None or df.empty:
 # --- FILTRES SIDEBAR ---
 st.sidebar.header("🔍 Filtres & Options")
 
-# Filtre Bourse (Coché par défaut)
 filter_listed = st.sidebar.checkbox(
     "📈 Entreprises cotées en bourse uniquement", 
     value=True,
@@ -108,7 +114,6 @@ search_company = st.sidebar.text_input("Rechercher une entreprise", "").strip().
 types_dispo = df['type'].dropna().unique().tolist() if 'type' in df.columns else []
 selected_types = st.sidebar.multiselect("Filtrer par mandat", options=types_dispo, default=types_dispo)
 
-# Application des filtres
 filtered_df = df.copy()
 
 if filter_listed:
@@ -136,7 +141,7 @@ else:
 with col1:
     st.metric(
         label="🏆 Top Investissement Cumulé",
-        value=f"{top_company_amount:,.0f} €".replace(",", " "),
+        value=fmt_eur(top_company_amount),
         delta=top_company_name,
         delta_color="normal"
     )
@@ -144,7 +149,7 @@ with col1:
 with col2:
     st.metric(
         label="💰 Total Cumulé Filtré",
-        value=f"{total_invested:,.0f} €".replace(",", " ")
+        value=fmt_eur(total_invested)
     )
 
 with col3:
@@ -161,7 +166,7 @@ with col4:
 
 st.markdown("---")
 
-# --- SECTION 1 : INVESTISSEMENT PAR BLOC POLITIQUE (GAUCHE VS DROITE) ---
+# --- SECTION 1 : INVESTISSEMENT PAR BLOC POLITIQUE ---
 st.subheader("⚖️ Répartition Globale : Gauche vs Droite")
 
 bloc_summary = filtered_df.groupby('bloc_politique').agg(
@@ -175,12 +180,13 @@ else:
     bloc_summary['pourcentage'] = 0
 
 bloc_summary = bloc_summary.sort_values(by='montant_total', ascending=False)
+bloc_summary['montant_total'] = bloc_summary['montant_total'].apply(fmt_eur)
 
 st.dataframe(
     bloc_summary,
     column_config={
         "bloc_politique": st.column_config.TextColumn("Bloc Politique"),
-        "montant_total": st.column_config.NumberColumn("Montant Total (€)", format="%d €"),
+        "montant_total": st.column_config.TextColumn("Montant Total (€)"),
         "pourcentage": st.column_config.NumberColumn("Part (%)", format="%.2f %%"),
         "nb_elus": st.column_config.NumberColumn("Nombre d'élus", format="%d")
     },
@@ -190,7 +196,7 @@ st.dataframe(
 
 st.markdown("---")
 
-# --- SECTION 2 : INVESTISSEMENT GLOBAL PAR PARTI POLITIQUE ---
+# --- SECTION 2 : INVESTISSEMENT PAR PARTI POLITIQUE ---
 st.subheader("🏛️ Répartition Globale par Parti Politique")
 
 parti_summary = filtered_df.groupby('parti').agg(
@@ -204,12 +210,13 @@ else:
     parti_summary['pourcentage'] = 0
 
 parti_summary = parti_summary.sort_values(by='montant_total', ascending=False)
+parti_summary['montant_total'] = parti_summary['montant_total'].apply(fmt_eur)
 
 st.dataframe(
     parti_summary,
     column_config={
         "parti": st.column_config.TextColumn("Parti Politique"),
-        "montant_total": st.column_config.NumberColumn("Montant Total (€)", format="%d €"),
+        "montant_total": st.column_config.TextColumn("Montant Total (€)"),
         "pourcentage": st.column_config.NumberColumn("Part (%)", format="%.2f %%"),
         "nb_elus": st.column_config.NumberColumn("Nombre d'Élus", format="%d")
     },
@@ -217,7 +224,7 @@ st.dataframe(
     use_container_width=True
 )
 
-st.info(f"💡 **Montant total des investissements cumulés analysés :** `{total_invested:,.0f} €`".replace(",", " "))
+st.info(f"💡 **Montant total des investissements cumulés analysés :** `{fmt_eur(total_invested)}`")
 
 st.markdown("---")
 
@@ -244,10 +251,13 @@ else:
 
     final_table = comp_summary.set_index('entreprise').join(pivot_pct).reset_index()
     final_table = final_table.sort_values(by='montant_cumule', ascending=False)
+    
+    # Formatage du montant cumulé après tri
+    final_table['montant_cumule'] = final_table['montant_cumule'].apply(fmt_eur)
 
     col_config = {
         "entreprise": st.column_config.TextColumn("Entreprise", width="medium"),
-        "montant_cumule": st.column_config.NumberColumn("Montant Cumulé (€)", format="%d €"),
+        "montant_cumule": st.column_config.TextColumn("Montant Cumulé (€)"),
         "nb_elus": st.column_config.NumberColumn("Nb Élus", format="%d")
     }
 
@@ -270,12 +280,13 @@ st.subheader("🔍 Détail des actionnaires par entreprise")
 if not filtered_df.empty:
     selected_company = st.selectbox(
         "Sélectionne une entreprise pour voir les parlementaires investis :",
-        options=final_table['entreprise'].unique()
+        options=comp_summary.sort_values(by='montant_cumule', ascending=False)['entreprise'].unique()
     )
 
     if selected_company:
         details = filtered_df[filtered_df['entreprise'] == selected_company][['elu', 'parti', 'type', 'montant']]
         details = details.sort_values(by='montant', ascending=False)
+        details['montant'] = details['montant'].apply(fmt_eur)
 
         st.dataframe(
             details,
@@ -283,7 +294,7 @@ if not filtered_df.empty:
                 "elu": "Nom de l'Élu",
                 "parti": "Parti Politique",
                 "type": "Mandat",
-                "montant": st.column_config.NumberColumn("Montant Investi (€)", format="%d €")
+                "montant": st.column_config.TextColumn("Montant Investi (€)")
             },
             hide_index=True,
             use_container_width=True
