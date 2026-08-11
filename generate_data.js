@@ -7,7 +7,7 @@ const OUTPUT_FILE = 'hatvp_data.json';
 
 function downloadXML(url) {
   return new Promise((resolve, reject) => {
-    console.log('Téléchargement du fichier XML HATVP...');
+    console.log('Téléchargement du XML HATVP...');
     https.get(url, { headers: { 'User-Agent': 'Mozilla/5.0' } }, (res) => {
       let data = '';
       res.on('data', chunk => data += chunk);
@@ -16,56 +16,82 @@ function downloadXML(url) {
   });
 }
 
+// Fonction utilitaire pour chercher récursivement des éléments dans le JS/XML
+function findItemsRecursive(obj, targetKey) {
+  let results = [];
+  if (!obj || typeof obj !== 'object') return results;
+
+  for (const key of Object.keys(obj)) {
+    if (key === targetKey) {
+      const val = obj[key];
+      if (Array.isArray(val)) {
+        results.push(...val);
+      } else if (val) {
+        results.push(val);
+      }
+    } else if (typeof obj[key] === 'object') {
+      results.push(...findItemsRecursive(obj[key], targetKey));
+    }
+  }
+  return results;
+}
+
 async function processData() {
   try {
     const xmlText = await downloadXML(XML_URL);
-    console.log('Parsing du document XML...');
+    console.log('Parsing XML...');
 
     const parser = new XMLParser({
       ignoreAttributes: false,
-      isArray: (name) => name === 'declaration' || name === 'items'
+      isArray: (name) => ['declaration', 'items'].includes(name)
     });
-    
+
     const parsedObj = parser.parse(xmlText);
-    const declarations = parsedObj?.declarations?.declaration || [];
     
+    // Récupère toutes les déclarations
+    const declarations = findItemsRecursive(parsedObj, 'declaration');
+    console.log(`Nombre total de déclarations trouvées dans le XML: ${declarations.length}`);
+
     const records = [];
 
     for (const decla of declarations) {
-      // Filtrer uniquement les députés
-      const qualite = decla?.qualiteMandat?.typeMandat || '';
-      const titre = decla?.qualiteMandat?.qualiteDeclarantForAffichage || '';
-      
-      if (!qualite.toLowerCase().includes('depute') && !titre.toLowerCase().includes('député')) {
-        continue;
-      }
+      // Normalisation pour le filtre député
+      const qualite = String(decla?.qualiteMandat?.typeMandat || '').toLowerCase();
+      const titre = String(decla?.qualiteMandat?.qualiteDeclarantForAffichage || '').toLowerCase();
 
-      const prenom = (decla?.declarant?.prenom || '').trim();
-      const nom = (decla?.declarant?.nom || '').trim();
-      const eluNom = `${prenom} ${nom}`.trim();
+      const isDepute = qualite.includes('depute') || qualite.includes('député') || 
+                       titre.includes('depute') || titre.includes('député');
 
-      let parti = (decla?.qualiteMandat?.organe?.codeOrgane || '').trim();
+      if (!isDepute) continue;
+
+      const prenom = String(decla?.declarant?.prenom || '').trim();
+      const nom = String(decla?.declarant?.nom || '').trim();
+      const eluNom = `${prenom} ${nom}`.trim() || 'Inconnu';
+
+      let parti = String(decla?.qualiteMandat?.organe?.codeOrgane || '').trim();
       if (!parti) {
-        parti = (decla?.qualiteMandat?.labelOrgane || 'Non renseigné').trim();
+        parti = String(decla?.qualiteMandat?.labelOrgane || 'Non renseigné').trim();
       }
 
-      // Extraction des participations financières
-      const itemsContainer = decla?.participationsFinancieresDto?.items;
-      let items = [];
-      if (Array.isArray(itemsContainer)) {
-        items = itemsContainer.flatMap(i => i.items || i);
-      } else if (itemsContainer?.items) {
-        items = Array.isArray(itemsContainer.items) ? itemsContainer.items : [itemsContainer.items];
-      }
+      // Extraction de la rubrique participations financières
+      const partSection = decla?.participationsFinancieresDto;
+      if (!partSection) continue;
 
-      for (const item of items) {
-        const nomSociete = (item?.nomSociete || '').trim().toUpperCase();
-        const evaluationStr = String(item?.evaluation || '0').trim();
+      // Recherche récursive de tous les objets ayant un "nomSociete"
+      const items = findItemsRecursive(partSection, 'items');
+      const allEntries = items.length > 0 ? items : (Array.isArray(partSection) ? partSection : [partSection]);
+
+      for (const item of allEntries) {
+        if (typeof item !== 'object' || !item) continue;
+
+        const nomSociete = String(item?.nomSociete || '').trim().toUpperCase();
+        const evaluationRaw = String(item?.evaluation || '0').trim();
 
         if (!nomSociete) continue;
 
-        // Extraction numérique du montant
-        const matches = evaluationStr.replace(/\s+/g, '').match(/\d+/);
+        // Extraction numérique propre du montant
+        const cleanVal = evaluationRaw.replace(/\s+/g, '');
+        const matches = cleanVal.match(/\d+/);
         const montant = matches ? parseFloat(matches[0]) : 0;
 
         records.push({
@@ -77,14 +103,14 @@ async function processData() {
       }
     }
 
-    console.log(`Extraction terminée : ${records.length} lignes trouvées.`);
-    
-    // Sauvegarde en JSON
+    console.log(`Succès ! ${records.length} participations financières de députés extraites.`);
+
     fs.writeFileSync(OUTPUT_FILE, JSON.stringify(records, null, 2), 'utf-8');
-    console.log(`Fichier JSON généré avec succès : ${OUTPUT_FILE}`);
+    console.log(`Fichier ${OUTPUT_FILE} mis à jour.`);
 
   } catch (error) {
     console.error('Erreur lors du traitement :', error);
+    process.exit(1);
   }
 }
 
