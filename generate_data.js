@@ -7,6 +7,108 @@ const DEPUTES_API_URL = 'https://www.nosdeputes.fr/deputes/json';
 const SENATEURS_API_URL = 'https://www.nossenateurs.fr/senateurs/json';
 const OUTPUT_FILE = 'hatvp_data.json';
 
+// Table de correspondance pour harmoniser les noms d'entreprises (tout en majuscules)
+const COMPANY_RULES = [
+  { matches: ["L'OREAL", "L OREAL", "LOREAL"], canonical: "L'OREAL" },
+  { matches: ["UNIBAIL-RODAMCO-WESTFIELD", "UNIBAIL RODAMCO", "UNIBAIL-RODAMCO", "UNIBAIL"], canonical: "UNIBAIL-RODAMCO-WESTFIELD" },
+  { matches: ["BOUYGUES SA", "BOUYGUES"], canonical: "BOUYGUES" },
+  { matches: ["AIR LIQUIDE", "AIR LIQUID"], canonical: "AIR LIQUIDE" },
+  { matches: ["SCHNEIDER ELECTRIC", "SCHNEIDER"], canonical: "SCHNEIDER ELECTRIC" },
+  { matches: ["BNP PARIBAS", "BNP"], canonical: "BNP PARIBAS" },
+  { matches: ["HERMES"], canonical: "HERMES" },
+  { matches: ["SANOFI"], canonical: "SANOFI" },
+  { matches: ["CREDIT AGRICOLE"], canonical: "CREDIT AGRICOLE" },
+  { matches: ["VALLOUREC"], canonical: "VALLOUREC" },
+  { matches: ["SAFRAN"], canonical: "SAFRAN" },
+  { matches: ["AXA"], canonical: "AXA" },
+  { matches: ["THALES"], canonical: "THALES" },
+  { matches: ["LVMH"], canonical: "LVMH" },
+  { matches: ["DANONE"], canonical: "DANONE" },
+  { matches: ["ENGIE"], canonical: "ENGIE" },
+  { matches: ["RENAULT"], canonical: "RENAULT" },
+  { matches: ["SOPRA STERIA"], canonical: "SOPRA STERIA" },
+  { matches: ["NANOBIOTIX"], canonical: "NANOBIOTIX" },
+  { matches: ["AIRBUS"], canonical: "AIRBUS" },
+  { matches: ["STELLANTIS"], canonical: "STELLANTIS" },
+  { matches: ["ORANGE"], canonical: "ORANGE" },
+  { matches: ["AIR FRANCE"], canonical: "AIR FRANCE-KLM" },
+  { matches: ["EURAZEO"], canonical: "EURAZEO" },
+  { matches: ["VINCI"], canonical: "VINCI" },
+  { matches: ["SAINT GOBAIN", "SAINT-GOBAIN"], canonical: "SAINT-GOBAIN" },
+  { matches: ["ALLIANZ"], canonical: "ALLIANZ" },
+  { matches: ["FDJ", "LA FRANCAISE DES JEUX"], canonical: "FDJ" },
+  { matches: ["VIVENDI"], canonical: "VIVENDI" },
+  { matches: ["ARCELORMITTAL"], canonical: "ARCELORMITTAL" },
+  { matches: ["VEOLIA ENVIRONNEMENT", "VEOLIA"], canonical: "VEOLIA" },
+  { matches: ["AEROPORTS DE PARIS", "GROUPE ADP", "ADP"], canonical: "GROUPE ADP" },
+  { matches: ["PERNOD RICARD", "PERNOD"], canonical: "PERNOD RICARD" },
+  { matches: ["MICHELIN"], canonical: "MICHELIN" },
+  { matches: ["CHRISTIAN DIOR", "DIOR"], canonical: "CHRISTIAN DIOR" },
+  { matches: ["UNIVERSAL MUSIC"], canonical: "UNIVERSAL MUSIC GROUP" },
+  { matches: ["MICROSOFT"], canonical: "MICROSOFT" },
+  { matches: ["TRIGANO"], canonical: "TRIGANO" },
+  { matches: ["ASML"], canonical: "ASML" },
+  { matches: ["JCDECAUX"], canonical: "JCDECAUX" },
+  { matches: ["ALSTOM"], canonical: "ALSTOM" },
+  { matches: ["CARREFOUR"], canonical: "CARREFOUR" },
+  { matches: ["KERING"], canonical: "KERING" },
+  { matches: ["BIOMERIEUX", "BIOMEDERIEUX"], canonical: "BIOMERIEUX" },
+  { matches: ["FNAC DARTY"], canonical: "FNAC DARTY" },
+  { matches: ["CELLNEX"], canonical: "CELLNEX TELECOM" },
+  { matches: ["APPLE"], canonical: "APPLE" },
+  { matches: ["REMY COINTREAU"], canonical: "REMY COINTREAU" },
+  { matches: ["STMICROELECTRONICS", "STMICROELECTONICS"], canonical: "STMICROELECTRONICS" },
+  { matches: ["SOLVAY"], canonical: "SOLVAY" },
+  { matches: ["ARKEMA"], canonical: "ARKEMA" },
+  { matches: ["CONTINENTAL"], canonical: "CONTINENTAL" },
+  { matches: ["SOCIETE GENERALE", "SCOIETE GENERALE"], canonical: "SOCIETE GENERALE" },
+  { matches: ["NEOEN"], canonical: "NEOEN" },
+  { matches: ["CAPGEMINI", "CAP GEMINI"], canonical: "CAPGEMINI" },
+  { matches: ["COSTCO"], canonical: "COSTCO" },
+  { matches: ["NOVO NORDISK"], canonical: "NOVO NORDISK" },
+  { matches: ["QUADIENT"], canonical: "QUADIENT" },
+  { matches: ["AMD", "ADVANCED MICRO DEVICES"], canonical: "AMD" },
+  { matches: ["TF1"], canonical: "TF1" },
+  { matches: ["UBER"], canonical: "UBER" },
+  { matches: ["EDF"], canonical: "EDF" },
+  { matches: ["WORLDLINE"], canonical: "WORLDLINE" },
+  { matches: ["PUMA"], canonical: "PUMA" },
+  { matches: ["SAMSUNG"], canonical: "SAMSUNG" },
+  { matches: ["INTUITIVE SURGICAL"], canonical: "INTUITIVE SURGICAL" },
+  { matches: ["RUBIS"], canonical: "RUBIS" },
+  { matches: ["NOKIA"], canonical: "NOKIA" },
+  { matches: ["EUROTUNNEL", "GETLINK"], canonical: "GETLINK" },
+  { matches: ["SERVICENOW"], canonical: "SERVICENOW" },
+  { matches: ["SALESFORCE"], canonical: "SALESFORCE" },
+  { matches: ["VISA"], canonical: "VISA" },
+  { matches: ["ZSCALER"], canonical: "ZSCALER" },
+  { matches: ["PUBLICIS"], canonical: "PUBLICIS" },
+  { matches: ["CARBIOS"], canonical: "CARBIOS" },
+  { matches: ["ESSILORLUXOTTICA", "ESSILOR"], canonical: "ESSILORLUXOTTICA" },
+  { matches: ["ROBLOX"], canonical: "ROBLOX" },
+  { matches: ["SARTORIUS STEDIM BIOTECH", "SARTORIUS STEDIM", "SARTORIUS"], canonical: "SARTORIUS STEDIM BIOTECH" },
+  { matches: ["SEA LIMITED", "SEA SP ADR-A"], canonical: "SEA LIMITED" },
+  { matches: ["WENDEL"], canonical: "WENDEL" },
+  { matches: ["REDDIT"], canonical: "REDDIT" },
+  { matches: ["IONQ"], canonical: "IONQ" },
+  { matches: ["DASSAULT SYSTEMES", "DASSAULT"], canonical: "DASSAULT SYSTEMES" },
+  { matches: ["MERCEDES-BENZ GROUP", "MERCEDEZ-BENZ", "MERCEDES"], canonical: "MERCEDES-BENZ GROUP" },
+  { matches: ["DERICHEBOURG"], canonical: "DERICHEBOURG" },
+  { matches: ["UBISOFT"], canonical: "UBISOFT" },
+  { matches: ["THYSSENKRUPP"], canonical: "THYSSENKRUPP" },
+  { matches: ["FORVIA"], canonical: "FORVIA" },
+  { matches: ["GL EVENTS"], canonical: "GL EVENTS" },
+  { matches: ["DONTNOD", "DON'T NOD"], canonical: "DONTNOD" },
+  { matches: ["DEEZER"], canonical: "DEEZER" },
+  { matches: ["EUROAPI"], canonical: "EUROAPI" },
+  { matches: ["TELEPERFORMANCE"], canonical: "TELEPERFORMANCE" },
+  { matches: ["NICOX"], canonical: "NICOX" },
+  { matches: ["VANTIVA"], canonical: "VANTIVA" },
+  { matches: ["RALLYE"], canonical: "RALLYE" },
+  { matches: ["CASINO-GUICHARD", "CASINO"], canonical: "CASINO" },
+  { matches: ["ATARI REGPT", "ATARI"], canonical: "ATARI" }
+];
+
 function fetchJSON(url) {
   return new Promise((resolve, reject) => {
     https.get(url, { headers: { 'User-Agent': 'Mozilla/5.0' } }, (res) => {
@@ -38,48 +140,34 @@ function getString(val) {
   return '';
 }
 
-// Fonction pour nettoyer et unifier les noms des entreprises (Anti-accents et doublons)
 function standardizeCompanyName(name) {
   if (!name) return '';
 
-  // 1. Enlever les accents (É devient E) et tout passer en majuscules pour comparer facilement
   let n = name.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
               .replace(/\[DONNEES NON PUBLIEES\]/gi, ' ')
+              .replace(/\[DONNÉES NON PUBLIÉES\]/gi, ' ')
               .replace(/[\n\r]/g, ' ')
               .replace(/\s+/g, ' ')
               .trim()
               .toUpperCase();
 
-  // 2. Unification TOTAL
-  if (n.includes('TOTALENERGIE') || n.includes('TOTAL ENERGIE') || n === 'TOTAL' || n === 'TOTAL ENERGIES SE') {
+  // Règle spécifique prioritaire : tout ce qui contient TOTAL devient TOTAL
+  if (n.includes('TOTAL')) {
     return 'TOTAL';
   }
 
-  // 3. Unification CREDIT AGRICOLE
-  if (n.includes('CREDIT AGRICOLE')) {
-    return 'CREDIT AGRICOLE';
+  // Vérification dans la table des règles
+  for (const rule of COMPANY_RULES) {
+    for (const pattern of rule.matches) {
+      if (n.includes(pattern)) {
+        return rule.canonical;
+      }
+    }
   }
 
-  // 4. Unification HERMES
-  if (n.includes('HERMES')) {
-    return 'HERMES';
-  }
-
-  // 5. Unification AIRBUS
-  if (n.includes('AIRBUS')) {
-    return 'AIRBUS';
-  }
-
-  // Si on n'a rien remplacé, on renvoie le nom d'origine (mais en nettoyant juste les parasites)
-  return name.replace(/\[DONNÉES NON PUBLIÉES\]/gi, '')
-             .replace(/\[DONNEES NON PUBLIEES\]/gi, '')
-             .replace(/[\n\r]/g, ' ')
-             .replace(/\s+/g, ' ')
-             .trim()
-             .toUpperCase();
+  return n;
 }
 
-// Extrait la valeur numérique des objets imbriqués
 function parseNumeric(val) {
   if (val === undefined || val === null || val === '') return 0;
   if (typeof val === 'number') return val;
