@@ -272,7 +272,39 @@ st.info(f"💡 **Montant total des investissements cumulés analysés :** `{fmt_
 
 st.markdown("---")
 
-# --- SECTION 3 : TABLEAU PAR ENTREPRISE ET VENTILATION PARTIS (%) ---
+# --- SECTION 3 : CUMUL PAR PARLEMENTAIRE / DÉPUTÉ ---
+st.subheader("👤 Classement & Cumul d'Investissements par Parlementaire")
+
+if filtered_df.empty:
+    st.warning("Aucune donnée disponible pour les critères sélectionnés.")
+else:
+    elu_summary = filtered_df.groupby(['elu', 'parti', 'type']).agg(
+        montant_total=('montant', 'sum'),
+        nb_entreprises=('entreprise', 'nunique')
+    ).reset_index()
+
+    elu_summary = elu_summary.sort_values(by='montant_total', ascending=False)
+    
+    elu_summary_display = elu_summary.copy()
+    elu_summary_display['montant_total'] = elu_summary_display['montant_total'].apply(fmt_eur)
+
+    st.dataframe(
+        elu_summary_display,
+        column_config={
+            "elu": st.column_config.TextColumn("Nom du Parlementaire", width="medium"),
+            "parti": st.column_config.TextColumn("Parti / Groupe Politique"),
+            "type": st.column_config.TextColumn("Mandat"),
+            "montant_total": st.column_config.TextColumn("Cumul Total Investi (€)"),
+            "nb_entreprises": st.column_config.NumberColumn("Entreprises Détenues", format="%d")
+        },
+        hide_index=True,
+        use_container_width=True,
+        height=400
+    )
+
+st.markdown("---")
+
+# --- SECTION 4 : TABLEAU PAR ENTREPRISE ET VENTILATION PARTIS (%) ---
 st.subheader("📋 Entreprises & Ventilation des Investissements par Parti (%)")
 
 if filtered_df.empty:
@@ -316,7 +348,7 @@ else:
         height=450
     )
 
-# --- SECTION 4 : DRILL-DOWN PAR ENTREPRISE ---
+# --- SECTION 5 : DRILL-DOWN PAR ENTREPRISE ---
 st.markdown("---")
 st.subheader("🔍 Détail des actionnaires par entreprise")
 
