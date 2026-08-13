@@ -14,6 +14,14 @@ st.set_page_config(
 st.title("📊 Participations Financières des Parlementaires & Impacts Boursiers")
 st.caption("Analyse des participations financières déclarées par les députés et sénateurs à la HATVP et leur exposition aux marchés boursiers.")
 
+# --- AVERTISSEMENT / DISCLAIMER SUR LES DONNÉES ---
+st.warning(
+    "⚠️ **Avertissement sur la fraîcheur des données :**\n\n"
+    "Les informations présentées sont issues des déclarations officielles publiées par la **HATVP** (Haute Autorité pour la Transparence de la Vie Publique). "
+    "Ces déclarations reflètent le patrimoine et les participations financières à la **date de leur dépôt par les parlementaires** (lors de leur prise de mandat).\n\n"
+    "**Note importante :** La valeur des portefeuilles, la détention d'actions ou la présence au capital de ces sociétés **ont pu évoluer de manière significative depuis cette déclaration** (à la hausse comme à la baisse), au gré des fluctuations des marchés boursiers ou d'éventuelles cessions/achats d'actifs effectués par les élus."
+)
+
 # --- EFFECTIFS DES GROUPES PARLEMENTAIRES (ASSEMBLÉE NATIONALE) ---
 GROUPS_EFFECTIFS = {
     'RN': 122,
@@ -161,6 +169,7 @@ if search_company:
     filtered_df = filtered_df[filtered_df['entreprise'].str.contains(search_company, na=False)]
 
 # --- KPIS EN HAUT ---
+st.markdown("---")
 col1, col2, col3, col4 = st.columns(4)
 
 total_invested = filtered_df['montant'].sum()
