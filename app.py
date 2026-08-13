@@ -24,24 +24,9 @@ st.warning(
 
 # --- EFFECTIFS DES GROUPES PARLEMENTAIRES (ASSEMBLÉE NATIONALE) ---
 GROUPS_EFFECTIFS = {
-    'RN': 122,
-    'EPR': 90,
-    'RE': 90,
-    'REN': 90,
-    'LFI': 71,
-    'SOC': 68,
-    'PS': 68,
-    'DR': 48,
-    'LR': 48,
-    'ECO': 38,
-    'EELV': 38,
-    'DEM': 37,
-    'MODEM': 37,
-    'HOR': 35,
-    'LIOT': 22,
-    'GDR': 17,
-    'UDR': 17,
-    'NI': 11
+    'RN': 122, 'EPR': 90, 'RE': 90, 'REN': 90, 'LFI': 71, 'SOC': 68,
+    'PS': 68, 'DR': 48, 'LR': 48, 'ECO': 38, 'EELV': 38, 'DEM': 37,
+    'MODEM': 37, 'HOR': 35, 'LIOT': 22, 'GDR': 17, 'UDR': 17, 'NI': 11
 }
 
 # --- LISTE EXACTE DES ENTREPRISES COTÉES HARMONISÉES (MAJUSCULES) ---
@@ -284,19 +269,45 @@ st.markdown("---")
 # --- SECTION 3 : CUMUL PAR PARLEMENTAIRE / DÉPUTÉ ---
 st.subheader("👤 Classement & Cumul d'Investissements par Parlementaire")
 
+# NOUVEAU : Message d'avertissement demandé
+st.info(
+    "**Avertissement sur le périmètre des données**\n\n"
+    "Les chiffres et classements ci-dessous reposent strictement sur les déclarations personnelles et nominatives déposées par chaque parlementaire auprès de la HATVP (Haute Autorité pour la transparence de la vie publique).\n\n"
+    "**À prendre en compte dans votre lecture :**\n"
+    "- **Patrimoine du foyer / conjoint :** Ces données ne comptabilisent que les actifs déclarés en propre par le/la député(e). Elles n'intègrent pas les investissements, actions ou patrimoines détenus séparément par leur conjoint(e), partenaire ou membres de la famille.\n"
+    "- **Intérêts indirects et familiaux :** Ce cumul ne reflète donc pas l'intégralité des intérêts économiques ou connexions financières à l'échelle du foyer.\n\n"
+    "💡 **Exemple :** Si un(e) parlementaire déclare un portefeuille d'actions dans une société (par exemple les ~1,6 million d'euros d'actions L'Oréal déclarés par Yaël Braun-Pivet), ce montant ne prend pas en compte les titres ou actifs potentiellement détenus par son/sa conjoint(e), y compris si ce(tte) dernier(e) y occupe des fonctions de haut dirigeant."
+)
+
 if filtered_df.empty:
     st.warning("Aucune donnée disponible pour les critères sélectionnés.")
 else:
-    elu_summary = filtered_df.groupby(['elu', 'parti', 'type']).agg(
+    # 1. Calcul de la base par élu
+    elu_summary_base = filtered_df.groupby(['elu', 'parti', 'type']).agg(
         montant_total=('montant', 'sum'),
         nb_entreprises=('entreprise', 'nunique')
     ).reset_index()
 
+    # 2. Logique pour récupérer le top 3 des entreprises par montant pour chaque élu
+    # D'abord, on somme le montant par entreprise pour chaque élu
+    elu_company_sums = filtered_df.groupby(['elu', 'parti', 'type', 'entreprise'])['montant'].sum().reset_index()
+    # On trie par élu puis par montant décroissant
+    elu_company_sums = elu_company_sums.sort_values(by=['elu', 'montant'], ascending=[True, False])
+    # On isole les 3 premières entreprises par élu
+    top_3_per_elu = elu_company_sums.groupby(['elu', 'parti', 'type']).head(3)
+    # On concatène les noms des entreprises sous forme de chaîne de caractères
+    top_3_str = top_3_per_elu.groupby(['elu', 'parti', 'type'])['entreprise'].apply(lambda x: ", ".join(x.astype(str))).reset_index(name='top_3_entreprises')
+
+    # 3. On fusionne la base avec la colonne des Top 3
+    elu_summary = pd.merge(elu_summary_base, top_3_str, on=['elu', 'parti', 'type'], how='left')
+
+    # 4. Tri par montant total décroissant
     elu_summary = elu_summary.sort_values(by='montant_total', ascending=False)
     
     elu_summary_display = elu_summary.copy()
     elu_summary_display['montant_total'] = elu_summary_display['montant_total'].apply(fmt_eur)
 
+    # 5. Affichage avec la nouvelle colonne configurée
     st.dataframe(
         elu_summary_display,
         column_config={
@@ -304,7 +315,8 @@ else:
             "parti": st.column_config.TextColumn("Parti / Groupe Politique"),
             "type": st.column_config.TextColumn("Mandat"),
             "montant_total": st.column_config.TextColumn("Cumul Total Investi (€)"),
-            "nb_entreprises": st.column_config.NumberColumn("Entreprises Détenues", format="%d")
+            "nb_entreprises": st.column_config.NumberColumn("Entreprises Détenues", format="%d"),
+            "top_3_entreprises": st.column_config.TextColumn("Top 3 Entreprises (en valeur)")
         },
         hide_index=True,
         use_container_width=True,
